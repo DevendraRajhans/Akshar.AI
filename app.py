@@ -48,6 +48,11 @@ html, body, [class*="css"] {
     border-color: #f97316 !important;
 }
 
+/* Fix Selectbox Cursor */
+div[data-baseweb="select"], div[data-baseweb="select"] * {
+    cursor: pointer !important;
+}
+
 /* Glassmorphism Prediction Card */
 .prediction-card {
     background: rgba(255, 255, 255, 0.05);
@@ -335,15 +340,252 @@ with tab2:
 
 with tab3:
     st.header("◉ Quiz Mode")
-    st.markdown("<br>", unsafe_allow_html=True)
 
-    if "score" not in st.session_state:
-        st.session_state.score = 0
+    if not modi_labels:
+        st.warning("Data not loaded to start the quiz. Please check if `modi_labels.json` exists.")
+    else:
+        # Category Filter UI
+        category_options = {
+            "All": None,
+            "Vowels": ["vowel", "vowel_modifier"],
+            "Consonants": ["consonant", "compound"],
+            "Numbers": ["numeral"]
+        }
+        
+        selected_cat = st.selectbox("Select Category", list(category_options.keys()))
 
-    st.metric("Score", st.session_state.score)
+        # Reset state if category changes
+        if "quiz_category" not in st.session_state or st.session_state.quiz_category != selected_cat:
+            st.session_state.quiz_category = selected_cat
+            st.session_state.score = 0
+            st.session_state.total_questions = 0
+            st.session_state.asked_questions = []
+            if "quiz_q" in st.session_state:
+                del st.session_state.quiz_q
 
-    if st.button("Next Question"):
-        st.write("Question coming soon...")
+        if "score" not in st.session_state:
+            st.session_state.score = 0
+            st.session_state.total_questions = 0
+            st.session_state.asked_questions = []
+
+        MAX_QUESTIONS = 10
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.metric("Score", st.session_state.score)
+        with m2:
+            accuracy = (st.session_state.score / st.session_state.total_questions * 100) if st.session_state.total_questions > 0 else 0
+            st.metric("Accuracy", f"{accuracy:.1f}%")
+        with m3:
+            st.metric("Progress", f"{st.session_state.total_questions} / {MAX_QUESTIONS}")
+
+        st.progress(st.session_state.total_questions / MAX_QUESTIONS if st.session_state.total_questions <= MAX_QUESTIONS else 1.0)
+
+        # Quiz Finished State
+        if st.session_state.total_questions >= MAX_QUESTIONS:
+            st.success(f"🎉 Quiz Complete! Your final score is {st.session_state.score} out of {MAX_QUESTIONS}.")
+            if st.button("Restart Quiz", type="primary"):
+                st.session_state.score = 0
+                st.session_state.total_questions = 0
+                st.session_state.asked_questions = []
+                if "quiz_q" in st.session_state:
+                    del st.session_state.quiz_q
+                st.rerun()
+        else:
+            if "quiz_q" not in st.session_state:
+                valid_types = category_options[selected_cat]
+                if valid_types is None:
+                    pool = list(modi_labels.keys())
+                else:
+                    pool = [k for k, v in modi_labels.items() if v.get("character_type") in valid_types]
+                
+                # Failsafe if pool < 4
+                if len(pool) < 4:
+                    pool = list(modi_labels.keys())
+
+                # Prevent repetition
+                available_pool = [k for k in pool if k not in st.session_state.asked_questions]
+                if not available_pool:
+                    # Reset history if all questions in pool have been asked
+                    st.session_state.asked_questions = []
+                    available_pool = pool
+
+                correct_key = random.choice(available_pool)
+                st.session_state.asked_questions.append(correct_key)
+
+                wrong_pool = [k for k in pool if k != correct_key]
+                
+                # Failsafe if wrong_pool < 3
+                if len(wrong_pool) < 3:
+                    wrong_pool = [k for k in modi_labels.keys() if k != correct_key]
+                    
+                wrong_keys = random.sample(wrong_pool, 3)
+                
+                options_keys = [correct_key] + wrong_keys
+                random.shuffle(options_keys)
+
+                available_q_types = ["modi_to_english", "english_to_modi"]
+                # Enable audio type if corresponding audio file exists
+                if os.path.exists(f"audio files/{modi_labels[correct_key]['devanagari']}.mp3"):
+                    available_q_types.append("audio_to_modi")
+
+                q_type = random.choice(available_q_types)
+
+                st.session_state.quiz_q = {
+                    "correct_key": correct_key,
+                    "options": [modi_labels[k] for k in options_keys],
+                    "q_type": q_type,
+                    "answered": False,
+                    "selected_opt": None
+                }
+
+            q = st.session_state.quiz_q
+            correct_info = modi_labels[q["correct_key"]]
+
+            st.markdown("<hr style='border-color: rgba(255,255,255,0.1); margin: 2rem 0;'>", unsafe_allow_html=True)
+            
+            # Progress question number display
+            st.markdown(f"<p style='color: #94a3b8; font-weight: 600; font-size: 1.1rem;'>Question {st.session_state.total_questions + 1} of {MAX_QUESTIONS}</p>", unsafe_allow_html=True)
+
+            if q["q_type"] == "modi_to_english":
+                st.subheader("Which character is this?")
+                st.markdown(f"<h1 style='text-align: center; font-size: 5rem; color: #fb923c;'>{correct_info['modi']}</h1>", unsafe_allow_html=True)
+            elif q["q_type"] == "english_to_modi":
+                st.subheader("What is the Modi script for this character?")
+                st.markdown(f"<h2 style='text-align: center; font-size: 2.5rem; color: #f8fafc; margin-top: 1rem; margin-bottom: 2rem;'>{correct_info['devanagari']} ({correct_info['english_name']})</h2>", unsafe_allow_html=True)
+            else:
+                st.subheader("Listen to the pronunciation and identify the Modi character:")
+                audio_path = f"audio files/{correct_info['devanagari']}.mp3"
+                st.audio(audio_path, format="audio/mp3")
+                st.markdown("<br>", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            col1, col2 = st.columns(2)
+            
+            for i, opt in enumerate(q["options"]):
+                c = col1 if i % 2 == 0 else col2
+                
+                if q["q_type"] == "modi_to_english":
+                    btn_label = f"{opt['devanagari']} ({opt['english_name']})"
+                else:
+                    btn_label = f"{opt['modi']} "
+
+                with c:
+                    if q["answered"]:
+                        is_correct = (opt == correct_info)
+                        if is_correct:
+                            bg_color = "rgba(34, 197, 94, 0.1)"
+                            border_color = "rgba(34, 197, 94, 0.5)"
+                            text_color = "#4ade80"
+                        elif q["selected_opt"] == opt:
+                            bg_color = "rgba(239, 68, 68, 0.1)"
+                            border_color = "rgba(239, 68, 68, 0.5)"
+                            text_color = "#f87171"
+                        else:
+                            bg_color = "transparent"
+                            border_color = "rgba(250, 250, 250, 0.2)"
+                            text_color = "rgba(250, 250, 250, 0.5)"
+
+                        st.markdown(f'''
+                        <div style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-weight: 400;
+                            padding: 0.25rem 0.75rem;
+                            border-radius: 0.5rem;
+                            min-height: 38.4px;
+                            margin: 0 0 1rem 0;
+                            line-height: 1.6;
+                            color: {text_color};
+                            width: 100%;
+                            background-color: {bg_color};
+                            border: 1px solid {border_color};
+                            box-sizing: border-box;
+                        ">
+                            {btn_label}
+                        </div>
+                        ''', unsafe_allow_html=True)
+                    else:
+                        if st.button(btn_label, key=f"opt_{i}", use_container_width=True):
+                            st.session_state.quiz_q["answered"] = True
+                            st.session_state.quiz_q["selected_opt"] = opt
+                            st.session_state.total_questions += 1
+                            if opt == correct_info:
+                                st.session_state.score += 1
+                            st.rerun()
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            if q["answered"]:
+                is_correct = (q["selected_opt"] == correct_info)
+                if is_correct:
+                    st.success("Correct! 🎉")
+                    # Party Pops animation exactly once
+                    if "balloons_shown" not in st.session_state.quiz_q:
+                        import streamlit.components.v1 as components
+                        import base64
+                        
+                        audio_tag = ""
+                        try:
+                            with open("audio files/PARTY_SOUND.mp3", "rb") as f:
+                                audio_b64 = base64.b64encode(f.read()).decode()
+                                audio_tag = f'<audio autoplay src="data:audio/mp3;base64,{audio_b64}"></audio>'
+                        except:
+                            pass
+
+                        components.html(
+                            audio_tag + """
+                            <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+                            <script>
+                                try {
+                                    const parentDoc = window.parent.document;
+                                    const canvas = parentDoc.createElement('canvas');
+                                    canvas.style.position = 'fixed';
+                                    canvas.style.top = '0';
+                                    canvas.style.left = '0';
+                                    canvas.style.width = '100vw';
+                                    canvas.style.height = '100vh';
+                                    canvas.style.pointerEvents = 'none';
+                                    canvas.style.zIndex = '999999';
+                                    parentDoc.body.appendChild(canvas);
+
+                                    var myConfetti = confetti.create(canvas, {
+                                        resize: true,
+                                        useWorker: true
+                                    });
+
+                                    myConfetti({
+                                        particleCount: 150,
+                                        spread: 80,
+                                        origin: { y: 0.6 }
+                                    });
+
+                                    setTimeout(() => {
+                                        if (parentDoc.body.contains(canvas)) {
+                                            parentDoc.body.removeChild(canvas);
+                                        }
+                                    }, 3500);
+                                } catch(e) {
+                                    console.error(e);
+                                }
+                            </script>
+                            """,
+                            height=0, 
+                            width=0
+                        )
+                        st.session_state.quiz_q["balloons_shown"] = True
+                else:
+                    st.error("Wrong! 😕")
+                
+                st.info(f"**Correct Answer:** {correct_info['modi']} - {correct_info['devanagari']} ({correct_info['english_name']})\n\n"
+                        f"**Example Word:** {correct_info.get('example_word', 'N/A')}")
+
+                if st.button("Next Question", type="primary"):
+                    del st.session_state.quiz_q
+                    st.rerun()
 
 with tab4:
     st.header("⊞ Character Library")
