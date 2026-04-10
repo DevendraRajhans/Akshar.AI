@@ -1,0 +1,515 @@
+{
+  "a": {
+    "devanagari": "अ",
+    "modi": "𑘀",
+    "english_name": "A",
+    "pronunciation": "uh (as in about)",
+    "example_word": "अग्नि (Agni — fire)",
+    "character_type": "vowel",
+    "historical_note": "A fundamental vowel appearing across all Modi manuscripts."
+  },
+  "aa": {
+    "devanagari": "आ",
+    "modi": "𑘁",
+    "english_name": "Aa",
+    "pronunciation": "aa (as in father)",
+    "example_word": "आम (Aam — mango)",
+    "character_type": "vowel",
+    "historical_note": "Widely used in daily vocabulary and administrative writing."
+  },
+  "ah": {
+    "devanagari": "अः",
+    "modi": "𑘀𑘾",
+    "english_name": "Ah",
+    "pronunciation": "aḥ (breath sound)",
+    "example_word": "दुःख (Dukh — sorrow)",
+    "character_type": "vowel_modifier",
+    "historical_note": "Occurs in Sanskrit-influenced scholarly and religious Modi texts."
+  },
+  "ai": {
+    "devanagari": "ऐ",
+    "modi": "𑘋",
+    "english_name": "Ai",
+    "pronunciation": "ai (as in aisle)",
+    "example_word": "ऐक (Aik — listen)",
+    "character_type": "vowel",
+    "historical_note": "Used in conversational and directive language within Modi writings."
+  },
+  "am": {
+    "devanagari": "अं",
+    "modi": "𑘀𑘽",
+    "english_name": "Am",
+    "pronunciation": "am (nasal)",
+    "example_word": "अंश (Ansh — part)",
+    "character_type": "vowel_modifier",
+    "historical_note": "Represents nasalization in both administrative and literary documents."
+  },
+  "b": {
+    "devanagari": "ब",
+    "modi": "𑘤",
+    "english_name": "Ba",
+    "pronunciation": "ba (as in bat)",
+    "example_word": "बाजार (Bazaar — market)",
+    "character_type": "consonant",
+    "historical_note": "Common in trade and commercial records in Modi manuscripts."
+  },
+  "bh": {
+    "devanagari": "भ",
+    "modi": "𑘥",
+    "english_name": "Bha",
+    "pronunciation": "bha (aspirated ba)",
+    "example_word": "भाऊ (Bhau — brother)",
+    "character_type": "consonant",
+    "historical_note": "Appears frequently in personal names and correspondence."
+  },
+  "ch": {
+    "devanagari": "च",
+    "modi": "𑘓",
+    "english_name": "Cha",
+    "pronunciation": "cha (as in chair)",
+    "example_word": "चहा (Chaha — tea)",
+    "character_type": "consonant",
+    "historical_note": "Common in daily vocabulary and informal Modi writing."
+  },
+  "chh": {
+    "devanagari": "छ",
+    "modi": "𑘔",
+    "english_name": "Chha",
+    "pronunciation": "chha (aspirated cha)",
+    "example_word": "छत्र (Chhatra — umbrella)",
+    "character_type": "consonant",
+    "historical_note": "Used in descriptive texts and formal records."
+  },
+  "d": {
+    "devanagari": "द",
+    "modi": "𑘟",
+    "english_name": "Da",
+    "pronunciation": "da (dental)",
+    "example_word": "दर (Dar — rate)",
+    "character_type": "consonant",
+    "historical_note": "Very common in financial and administrative records."
+  },
+  "dh": {
+    "devanagari": "ध",
+    "modi": "𑘠",
+    "english_name": "Dha",
+    "pronunciation": "dha (aspirated da)",
+    "example_word": "धन (Dhan — wealth)",
+    "character_type": "consonant",
+    "historical_note": "Appears in treasury and wealth-related documentation."
+  },
+  "dha": {
+    "devanagari": "ढ",
+    "modi": "𑘛",
+    "english_name": "Dha Retroflex",
+    "pronunciation": "dha (retroflex)",
+    "example_word": "ढोल (Dhol — drum)",
+    "character_type": "consonant",
+    "historical_note": "Used in cultural and descriptive texts."
+  },
+  "dyn": {
+    "devanagari": "ज्ञ",
+    "modi": "ज्ञ",
+    "english_name": "Dnya",
+    "pronunciation": "dnya",
+    "example_word": "ज्ञान (Dnyan — knowledge)",
+    "character_type": "compound",
+    "historical_note": "Common in scholarly and philosophical Modi manuscripts."
+  },
+  "e": {
+    "devanagari": "ए",
+    "modi": "𑘊",
+    "english_name": "E",
+    "pronunciation": "e (as in they)",
+    "example_word": "एक (Ek — one)",
+    "character_type": "vowel",
+    "historical_note": "Used in counting, listing, and descriptive records."
+  },
+  "eight": {
+    "devanagari": "८",
+    "modi": "𑙘",
+    "english_name": "Eight",
+    "pronunciation": "aath",
+    "example_word": "आठ (Eight)",
+    "character_type": "numeral",
+    "historical_note": "Appears in financial and inventory records."
+  },
+  "five": {
+    "devanagari": "५",
+    "modi": "𑙕",
+    "english_name": "Five",
+    "pronunciation": "paanch",
+    "example_word": "पाच (Five)",
+    "character_type": "numeral",
+    "historical_note": "Used in land division and agricultural documentation."
+  },
+  "four": {
+    "devanagari": "४",
+    "modi": "𑙔",
+    "english_name": "Four",
+    "pronunciation": "chaar",
+    "example_word": "चार (Four)",
+    "character_type": "numeral",
+    "historical_note": "Common in administrative counting and records."
+  },
+  "g": {
+    "devanagari": "ग",
+    "modi": "𑘐",
+    "english_name": "Ga",
+    "pronunciation": "ga (as in go)",
+    "example_word": "गाव (Gaav — village)",
+    "character_type": "consonant",
+    "historical_note": "Very common in land and village records."
+  },
+  "gh": {
+    "devanagari": "घ",
+    "modi": "𑘑",
+    "english_name": "Gha",
+    "pronunciation": "gha (aspirated ga)",
+    "example_word": "घर (Ghar — house)",
+    "character_type": "consonant",
+    "historical_note": "Appears in property and housing-related documents."
+  },
+  "h": {
+    "devanagari": "ह",
+    "modi": "𑘮",
+    "english_name": "Ha",
+    "pronunciation": "ha (as in hat)",
+    "example_word": "हात (Haat — hand)",
+    "character_type": "consonant",
+    "historical_note": "Widely used in both administrative and personal Modi writings."
+  },
+  "i": {
+    "devanagari": "इ",
+    "modi": "𑘂",
+    "english_name": "I",
+    "pronunciation": "i (as in bit)",
+    "example_word": "इमारत (Imaarat — building)",
+    "character_type": "vowel",
+    "historical_note": "Appears in structural and administrative records."
+  },
+  "ii": {
+    "devanagari": "ई",
+    "modi": "𑘃",
+    "english_name": "Ee",
+    "pronunciation": "ee (as in see)",
+    "example_word": "ईश्वर (Ishwar — God)",
+    "character_type": "vowel",
+    "historical_note": "Common in religious and philosophical Modi manuscripts."
+  },
+  "ja": {
+    "devanagari": "ज",
+    "modi": "𑘕",
+    "english_name": "Ja",
+    "pronunciation": "ja (as in jam)",
+    "example_word": "जग (Jag — world)",
+    "character_type": "consonant",
+    "historical_note": "Frequently appears in narrative and descriptive texts."
+  },
+  "jh": {
+    "devanagari": "झ",
+    "modi": "𑘖",
+    "english_name": "Jha",
+    "pronunciation": "jha (aspirated ja)",
+    "example_word": "झोप (Zhop — sleep)",
+    "character_type": "consonant",
+    "historical_note": "Appears in informal writings and descriptive vocabulary."
+  },
+  "k": {
+    "devanagari": "क",
+    "modi": "𑘎",
+    "english_name": "Ka",
+    "pronunciation": "ka (as in cup)",
+    "example_word": "काम (Kaam — work)",
+    "character_type": "consonant",
+    "historical_note": "One of the most frequent characters in administrative Modi documents."
+  },
+  "kh": {
+    "devanagari": "ख",
+    "modi": "𑘏",
+    "english_name": "Kha",
+    "pronunciation": "kha (aspirated ka)",
+    "example_word": "खाना (Khaana — food)",
+    "character_type": "consonant",
+    "historical_note": "Appears in trade and food-related records."
+  },
+  "ksh": {
+    "devanagari": "क्ष",
+    "modi": "क्ष",
+    "english_name": "Ksha",
+    "pronunciation": "ksha",
+    "example_word": "क्षेत्र (Kshetra — region)",
+    "character_type": "compound",
+    "historical_note": "Common in formal, geographical, and religious texts."
+  },
+  "l": {
+    "devanagari": "ल",
+    "modi": "𑘩",
+    "english_name": "La",
+    "pronunciation": "la (as in love)",
+    "example_word": "लोक (Lok — people)",
+    "character_type": "consonant",
+    "historical_note": "Used in population records and descriptive texts."
+  },
+  "lh": {
+    "devanagari": "ळ",
+    "modi": "𑘯",
+    "english_name": "Lha",
+    "pronunciation": "retroflex la",
+    "example_word": "मळा (Mala — field)",
+    "character_type": "consonant",
+    "historical_note": "A distinctive Marathi sound in regional vocabulary."
+  },
+  "m": {
+    "devanagari": "म",
+    "modi": "𑘦",
+    "english_name": "Ma",
+    "pronunciation": "ma (as in man)",
+    "example_word": "माता (Mata — mother)",
+    "character_type": "consonant",
+    "historical_note": "Highly frequent in both official and personal documents."
+  },
+  "n": {
+    "devanagari": "न",
+    "modi": "𑘡",
+    "english_name": "Na",
+    "pronunciation": "na (dental)",
+    "example_word": "नाव (Naav — name)",
+    "character_type": "consonant",
+    "historical_note": "Common in names, places, and identification records."
+  },
+  "nine": {
+    "devanagari": "९",
+    "modi": "𑙙",
+    "english_name": "Nine",
+    "pronunciation": "nau",
+    "example_word": "नऊ (Nine)",
+    "character_type": "numeral",
+    "historical_note": "Appears in accounting and transaction records."
+  },
+  "nn": {
+    "devanagari": "ण",
+    "modi": "𑘜",
+    "english_name": "Na Retroflex",
+    "pronunciation": "retroflex na",
+    "example_word": "माणूस (Manus — person)",
+    "character_type": "consonant",
+    "historical_note": "A core Marathi sound used in native vocabulary."
+  },
+  "o": {
+    "devanagari": "ओ",
+    "modi": "𑘌",
+    "english_name": "O",
+    "pronunciation": "o (as in go)",
+    "example_word": "ओढा (Odhha — stream)",
+    "character_type": "vowel",
+    "historical_note": "Appears in geographical and environmental descriptions."
+  },
+  "one": {
+    "devanagari": "१",
+    "modi": "𑙑",
+    "english_name": "One",
+    "pronunciation": "ek",
+    "example_word": "एक (One)",
+    "character_type": "numeral",
+    "historical_note": "Widely used in counting, indexing, and record keeping."
+  },
+  "oo": {
+    "devanagari": "ऊ",
+    "modi": "𑘅",
+    "english_name": "Oo",
+    "pronunciation": "oo (as in food)",
+    "example_word": "ऊस (Oos — sugarcane)",
+    "character_type": "vowel",
+    "historical_note": "Common in agricultural documentation."
+  },
+  "ou": {
+    "devanagari": "औ",
+    "modi": "𑘍",
+    "english_name": "Ou",
+    "pronunciation": "ou (as in cow)",
+    "example_word": "औषध (Aushadh — medicine)",
+    "character_type": "vowel",
+    "historical_note": "Appears in medicinal and scholarly texts."
+  },
+  "p": {
+    "devanagari": "प",
+    "modi": "𑘢",
+    "english_name": "Pa",
+    "pronunciation": "pa (as in pen)",
+    "example_word": "पाणी (Paani — water)",
+    "character_type": "consonant",
+    "historical_note": "Common in daily vocabulary and administrative records."
+  },
+  "ph": {
+    "devanagari": "फ",
+    "modi": "𑘣",
+    "english_name": "Pha",
+    "pronunciation": "pha (aspirated pa)",
+    "example_word": "फळ (Phal — fruit)",
+    "character_type": "consonant",
+    "historical_note": "Appears in agricultural and trade-related documents."
+  },
+  "r": {
+    "devanagari": "र",
+    "modi": "𑘨",
+    "english_name": "Ra",
+    "pronunciation": "ra (rolled r)",
+    "example_word": "राजा (Raja — king)",
+    "character_type": "consonant",
+    "historical_note": "Very common in royal and administrative records."
+  },
+  "s": {
+    "devanagari": "स",
+    "modi": "𑘭",
+    "english_name": "Sa",
+    "pronunciation": "sa (as in sun)",
+    "example_word": "सूर्य (Surya — sun)",
+    "character_type": "consonant",
+    "historical_note": "Used in descriptive and religious contexts."
+  },
+  "seven": {
+    "devanagari": "७",
+    "modi": "𑙗",
+    "english_name": "Seven",
+    "pronunciation": "saat",
+    "example_word": "सात (Seven)",
+    "character_type": "numeral",
+    "historical_note": "Appears in counting and record-keeping."
+  },
+  "sh": {
+    "devanagari": "श",
+    "modi": "𑘫",
+    "english_name": "Sha",
+    "pronunciation": "sha (as in shark)",
+    "example_word": "शाळा (Shaala — school)",
+    "character_type": "consonant",
+    "historical_note": "Common in educational and formal Modi texts."
+  },
+  "shr": {
+    "devanagari": "श्र",
+    "modi": "श्र",
+    "english_name": "Shra",
+    "pronunciation": "shra",
+    "example_word": "श्रद्धा (Shraddha — faith)",
+    "character_type": "compound",
+    "historical_note": "Appears in religious and Sanskrit-influenced manuscripts."
+  },
+  "six": {
+    "devanagari": "६",
+    "modi": "𑙖",
+    "english_name": "Six",
+    "pronunciation": "saha",
+    "example_word": "सहा (Six)",
+    "character_type": "numeral",
+    "historical_note": "Used in quantitative records and documentation."
+  },
+  "ta": {
+    "devanagari": "त",
+    "modi": "𑘝",
+    "english_name": "Ta",
+    "pronunciation": "ta (dental)",
+    "example_word": "तलवार (Talwar — sword)",
+    "character_type": "consonant",
+    "historical_note": "Appears in military and administrative records."
+  },
+  "th": {
+    "devanagari": "थ",
+    "modi": "𑘞",
+    "english_name": "Tha",
+    "pronunciation": "tha (aspirated dental)",
+    "example_word": "थंड (Thand — cold)",
+    "character_type": "consonant",
+    "historical_note": "Used in descriptive and environmental contexts."
+  },
+  "tha": {
+    "devanagari": "ठ",
+    "modi": "𑘙",
+    "english_name": "Tha Retroflex",
+    "pronunciation": "tha (retroflex)",
+    "example_word": "ठिकाण (Thikaan — place)",
+    "character_type": "consonant",
+    "historical_note": "Appears in location and property records."
+  },
+  "t": {
+    "devanagari": "ट",
+    "modi": "𑘘",
+    "english_name": "Ta Retroflex",
+    "pronunciation": "hard ta",
+    "example_word": "टाळ (Taal — rhythm)",
+    "character_type": "consonant",
+    "historical_note": "Used in cultural and descriptive texts."
+  },
+  "da": {
+    "devanagari": "ड",
+    "modi": "𑘚",
+    "english_name": "Dha Retroflex 2",
+    "pronunciation": "dha (retroflex)",
+    "example_word": "डोंगर (Dongar — mountain)",
+    "character_type": "consonant",
+    "historical_note": "Appears in cultural and narrative records."
+  },
+  "three": {
+    "devanagari": "३",
+    "modi": "𑙓",
+    "english_name": "Three",
+    "pronunciation": "teen",
+    "example_word": "तीन (Three)",
+    "character_type": "numeral",
+    "historical_note": "Common in counting and financial documentation."
+  },
+  "tr": {
+    "devanagari": "त्र",
+    "modi": "त्र",
+    "english_name": "Tra",
+    "pronunciation": "tra",
+    "example_word": "त्रय (Traya — trio)",
+    "character_type": "compound",
+    "historical_note": "Used in Sanskrit-derived and formal texts."
+  },
+  "two": {
+    "devanagari": "२",
+    "modi": "𑙒",
+    "english_name": "Two",
+    "pronunciation": "don",
+    "example_word": "दोन (Two)",
+    "character_type": "numeral",
+    "historical_note": "Appears in trade and accounting records."
+  },
+  "u": {
+    "devanagari": "उ",
+    "modi": "𑘄",
+    "english_name": "U",
+    "pronunciation": "u (as in put)",
+    "example_word": "उदक (Udak — water)",
+    "character_type": "vowel",
+    "historical_note": "Appears in traditional and classical Modi texts."
+  },
+  "v": {
+    "devanagari": "व",
+    "modi": "𑘪",
+    "english_name": "Va",
+    "pronunciation": "va/wa",
+    "example_word": "वाट (Vaat — path)",
+    "character_type": "consonant",
+    "historical_note": "Used in geographical and descriptive records."
+  },
+  "y": {
+    "devanagari": "य",
+    "modi": "𑘧",
+    "english_name": "Ya",
+    "pronunciation": "ya (as in yes)",
+    "example_word": "यज्ञ (Yagya — ritual)",
+    "character_type": "consonant",
+    "historical_note": "Appears in religious and ceremonial texts."
+  },
+  "zero": {
+    "devanagari": "०",
+    "modi": "𑙐",
+    "english_name": "Zero",
+    "pronunciation": "shoonya",
+    "example_word": "शून्य (Zero)",
+    "character_type": "numeral",
+    "historical_note": "Used extensively in accounting systems in Modi manuscripts."
+  }
+}
