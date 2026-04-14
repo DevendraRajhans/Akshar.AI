@@ -2,15 +2,19 @@ import streamlit as st
 import random
 import json
 import os
+import io
+import hashlib
 import warnings
 import streamlit.components.v1 as components
 import warnings
 
 
 # Suppress visual terminal warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow')
 warnings.filterwarnings('ignore', category=UserWarning, module='keras')
+import logging
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 from PIL import Image
 from utils.predict import load_tflite_model, predict
@@ -73,6 +77,193 @@ def icon(name, size=18, color="currentColor", cls=""):
     return svg
 
 # ─── PREMIUM DARK LUXURY CSS ────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def get_file_b64(path, modified_at):
+    import base64
+
+    with open(path, "rb") as file:
+        return base64.b64encode(file.read()).decode()
+
+def render_themed_audio(audio_path, player_key, title="Pronunciation Audio", autoplay=False):
+    """Render the app's themed audio control instead of the browser default player."""
+    if not os.path.exists(audio_path):
+        st.markdown(f"""
+        <div class="video-not-found" style="max-width: 520px; min-height: 72px; margin: 1rem auto 0 auto;">
+            {icon("x_circle", 24, "#6b5c47")}
+            <span>Pronunciation audio not yet available for this character</span>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+
+    safe_key = "".join(ch if ch.isalnum() else "_" for ch in str(player_key))
+    audio_b64 = get_file_b64(audio_path, os.path.getmtime(audio_path))
+
+    autoplay_attr = "autoplay" if autoplay else ""
+    initial_button = "Ⅱ" if autoplay else "▶"
+    autoplay_js = "audio.play().catch(() => {}); button.textContent = audio.paused ? '▶' : 'Ⅱ';" if autoplay else ""
+    audio_html = f"""
+    <style>
+    .ak-audio-card {{
+        box-sizing: border-box;
+        width: min(100%, 560px);
+        margin: 0 auto;
+        padding: 1rem 1.1rem;
+        background: linear-gradient(135deg, rgba(255, 153, 51, 0.10), rgba(45, 20, 7, 0.92));
+        border: 1px solid rgba(255, 153, 51, 0.28);
+        border-top-color: rgba(255, 153, 51, 0.55);
+        border-radius: 8px;
+        box-shadow: 0 14px 36px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05);
+        font-family: Inter, sans-serif;
+    }}
+    .ak-audio-title {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        color: #FF9933;
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        margin-bottom: 0.75rem;
+    }}
+    .ak-audio-player {{
+        display: grid;
+        grid-template-columns: 40px 1fr auto;
+        align-items: center;
+        gap: 0.85rem;
+    }}
+    .ak-audio-play {{
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,153,51,0.42);
+        background: linear-gradient(135deg, #FF9933, #B86619);
+        color: #1A0D06;
+        font-size: 1rem;
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(255,153,51,0.18);
+    }}
+    .ak-audio-play:hover {{
+        filter: brightness(1.08);
+    }}
+    .ak-audio-track {{
+        appearance: none;
+        -webkit-appearance: none;
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #FF9933 var(--progress, 0%), rgba(255,255,255,0.12) var(--progress, 0%));
+        outline: none;
+        cursor: pointer;
+    }}
+    .ak-audio-track::-webkit-slider-thumb {{
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #FFD19A;
+        border: 2px solid #FF9933;
+        box-shadow: 0 0 12px rgba(255,153,51,0.45);
+    }}
+    .ak-audio-track::-moz-range-thumb {{
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #FFD19A;
+        border: 2px solid #FF9933;
+        box-shadow: 0 0 12px rgba(255,153,51,0.45);
+    }}
+    .ak-audio-time {{
+        color: rgba(245, 238, 226, 0.78);
+        font-size: 0.78rem;
+        font-weight: 700;
+        min-width: 80px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }}
+    @media (max-width: 520px) {{
+        .ak-audio-player {{
+            grid-template-columns: 40px 1fr;
+        }}
+        .ak-audio-time {{
+            grid-column: 1 / -1;
+            text-align: center;
+        }}
+    }}
+    </style>
+    <div class="ak-audio-card">
+        <div class="ak-audio-title">
+            <span>{icon("headphones", 14)}</span>
+            {title}
+        </div>
+        <div class="ak-audio-player">
+            <button class="ak-audio-play" id="audioBtn_{safe_key}" type="button">{initial_button}</button>
+            <input class="ak-audio-track" id="audioTrack_{safe_key}" type="range" min="0" max="100" value="0">
+            <div class="ak-audio-time" id="audioTime_{safe_key}">0:00 / 0:00</div>
+        </div>
+        <audio id="learnAudio_{safe_key}" preload="metadata" {autoplay_attr}>
+            <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+        </audio>
+    </div>
+    <script>
+    (function() {{
+        const audio = document.getElementById('learnAudio_{safe_key}');
+        const button = document.getElementById('audioBtn_{safe_key}');
+        const track = document.getElementById('audioTrack_{safe_key}');
+        const time = document.getElementById('audioTime_{safe_key}');
+
+        function fmt(seconds) {{
+            if (!Number.isFinite(seconds)) return '0:00';
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${{m}}:${{s}}`;
+        }}
+        function sync() {{
+            const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+            track.value = pct;
+            track.style.setProperty('--progress', `${{pct}}%`);
+            time.textContent = `${{fmt(audio.currentTime)}} / ${{fmt(audio.duration)}}`;
+        }}
+        button.addEventListener('click', () => {{
+            if (audio.paused) {{
+                audio.play();
+                button.textContent = 'Ⅱ';
+            }} else {{
+                audio.pause();
+                button.textContent = '▶';
+            }}
+        }});
+        track.addEventListener('input', () => {{
+            if (audio.duration) {{
+                audio.currentTime = (Number(track.value) / 100) * audio.duration;
+                sync();
+            }}
+        }});
+        audio.addEventListener('loadedmetadata', sync);
+        audio.addEventListener('timeupdate', sync);
+        audio.addEventListener('play', () => button.textContent = 'Ⅱ');
+        audio.addEventListener('pause', () => button.textContent = '▶');
+        audio.addEventListener('ended', () => {{
+            button.textContent = '▶';
+            sync();
+        }});
+        {autoplay_js}
+        sync();
+    }})();
+    </script>
+    """
+    st.iframe(audio_html, height=132)
+
+def crop_center_square(image):
+    """Return a centered 1:1 crop for camera captures."""
+    width, height = image.size
+    side = min(width, height)
+    left = (width - side) // 2
+    top = (height - side) // 2
+    return image.crop((left, top, left + side, top + side))
+
 css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -195,13 +386,12 @@ html, body, [class*="css"] {
 
 /* ─── MAIN CONTENT PADDING ─── */
 .block-container {
-    padding: 2rem 3rem 4rem 3rem !important;
-    max-width: 1200px !important;
+    padding: clamp(1.2rem, 4vw, 3rem) clamp(0.8rem, 5vw, 3.5rem) 4rem clamp(0.8rem, 5vw, 3.5rem) !important;
+    max-width: 1440px !important;
+    width: 100% !important;
     position: relative !important;
     z-index: 10 !important;
-}
-@media (max-width: 768px) {
-    .block-container { padding: 1rem 1rem 3rem 1rem !important; }
+    margin: 0 auto;
 }
 
 /* ─── KEYFRAME ANIMATIONS ─── */
@@ -303,7 +493,7 @@ html, body, [class*="css"] {
     font-family: 'Cinzel', serif;
     font-weight: 900;
     text-align: center;
-    font-size: 3.5rem;
+    font-size: clamp(2.2rem, 6vw, 4.5rem);
     letter-spacing: 0.06em;
     background: linear-gradient(135deg, #FFB347 0%, #FF9933 40%, #CC7A29 70%, #FFB347 100%);
     background-size: 200% auto;
@@ -311,11 +501,8 @@ html, body, [class*="css"] {
     -webkit-text-fill-color: transparent;
     animation: shimmer 8s ease-in-out infinite;
     margin: 0;
-    line-height: 1.3;
+    line-height: 1.25;
     text-shadow: none;
-}
-@media (max-width: 768px) {
-    .hero-title h1 { font-size: 2.2rem; }
 }
 .hero-subtitle {
     text-align: center;
@@ -475,6 +662,37 @@ html, body, [class*="css"] {
     border-color: var(--border-hover);
     box-shadow: var(--shadow-hover);
 }
+.recognize-source-card {
+    background: linear-gradient(135deg, rgba(255, 153, 51, 0.06), rgba(255, 255, 255, 0.02));
+    border: 1px solid rgba(255, 153, 51, 0.16);
+    border-top-color: rgba(255, 153, 51, 0.32);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.75rem;
+    min-height: 104px;
+}
+.recognize-source-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--gold);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+}
+.recognize-source-copy {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+[data-testid="stCameraInput"] video,
+[data-testid="stCameraInput"] img {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 8px;
+}
 .upload-label {
     font-family: 'Cinzel', serif;
     font-weight: 700;
@@ -625,8 +843,10 @@ html, body, [class*="css"] {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: shimmer 3s ease-in-out infinite;
-    margin: 0;
-    line-height: 1.3;
+    display: block;
+    margin: 0 auto;
+    line-height: 1.55;
+    padding: 0.08em 0 0.18em 0;
     position: relative;
     z-index: 1;
     filter: drop-shadow(0 0 30px rgba(255, 153, 51, 0.2));
@@ -681,15 +901,21 @@ html, body, [class*="css"] {
 /* ─── CHARACTER GRIDS (Learn & Library) ─── */
 .char-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    gap: 16px;
     margin-top: 1.5rem;
 }
+@media (min-width: 1025px) {
+    .library-section .char-grid { grid-template-columns: repeat(6, 1fr) !important; }
+}
+@media (max-width: 1024px) {
+    .char-grid { grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 14px; }
+}
 @media (max-width: 768px) {
-    .char-grid {
-        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-        gap: 8px;
-    }
+    .char-grid { grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 10px; margin-top: 1rem; }
+}
+@media (max-width: 480px) {
+    .char-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
 }
 
 .char-card-ui {
@@ -967,6 +1193,173 @@ div[data-baseweb="select"] > div:hover {
     margin-right: auto;
 }
 
+/* ─── LEARN: CATEGORY CARD BUTTONS ─── */
+/* Style the Streamlit buttons to look like premium cards */
+button[data-testid="stButton"][kind="secondary"],
+button[data-testid="stButton"][kind="primary"] {
+    /* Default button styles are fine for most buttons */
+}
+/* Target the category card buttons specifically by their key prefix */
+div[data-testid="stVerticalBlock"] > div[data-testid="stButton"]:only-child button {
+    /* This would be too broad, use the below approach instead */
+}
+
+/* Learn tab category cards use an invisible Streamlit button overlay so the card itself is clickable. */
+.learn-category-card {
+    min-height: 230px;
+}
+
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] {
+    margin-top: -230px;
+    height: 230px;
+    position: relative;
+    z-index: 5;
+}
+
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"],
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button {
+    width: 100%;
+    height: 100%;
+}
+
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: transparent !important;
+    padding: 0 !important;
+    border-radius: var(--radius-lg) !important;
+}
+
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button:hover,
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button:focus,
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button:active {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: transparent !important;
+}
+
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button *,
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button::before,
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button::after {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+div[data-testid="stElementContainer"]:has(.learn-category-card) + div[data-testid="stElementContainer"] div[data-testid="stButton"] button p {
+    opacity: 0;
+}
+
+[data-testid="stColumn"]:has(.learn-category-card):has(div[data-testid="stButton"] button:hover) .learn-category-card {
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 153, 51, 0.16), transparent 46%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.055), var(--surface-hover));
+    border-color: var(--gold);
+    transform: translateY(-6px);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), 0 0 28px rgba(255, 153, 51, 0.18);
+}
+
+[data-testid="stColumn"]:has(.learn-category-card):has(div[data-testid="stButton"] button:hover) .learn-category-card::before {
+    opacity: 1;
+}
+
+/* Learn tab category card buttons - styled via the premium-cat-card class on wrapper */
+[data-testid="stColumn"] > [data-testid="stVerticalBlockBorderWrapper"] > div > [data-testid="stVerticalBlock"] > [data-testid="stButton"]:only-child button[kind="secondary"],
+[data-testid="stColumn"] > [data-testid="stVerticalBlockBorderWrapper"] > div > [data-testid="stVerticalBlock"] > [data-testid="stButton"]:only-child button[kind="primary"] {
+    /* These selectors are too fragile. Use JS-injected class instead */
+}
+
+/* ─── LEARN: PRACTICE SECTION (VIDEO + CANVAS) ─── */
+.practice-section-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--gold);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+}
+.practice-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.2rem;
+    animation: fadeInUp 0.35s ease-out;
+    background: linear-gradient(135deg, rgba(255, 153, 51, 0.10), rgba(45, 20, 7, 0.92));
+}
+.practice-panel-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.6rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+.learn-audio-card {
+    max-width: 560px;
+    margin: 1rem auto 0 auto;
+    padding: 1rem 1.1rem;
+    background: linear-gradient(135deg, rgba(255, 153, 51, 0.08), rgba(255, 255, 255, 0.025));
+    border: 1px solid rgba(255, 153, 51, 0.22);
+    border-top-color: rgba(255, 153, 51, 0.42);
+    border-radius: 8px;
+    box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.learn-audio-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    color: var(--gold);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 0.55rem;
+}
+.learn-speed-card {
+    width: min(100%, 380px);
+    margin: 0.7rem auto 0 auto;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 153, 51, 0.16);
+    border-radius: 8px;
+}
+.learn-speed-card .practice-panel-label {
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 0;
+}
+div[data-testid="stElementContainer"]:has(.learn-speed-card) + div[data-testid="stElementContainer"] {
+    width: min(100%, 380px);
+    margin: 0.35rem auto 0 auto;
+    padding-left: 1.1rem;
+}
+div[data-testid="stElementContainer"]:has(.learn-speed-card) + div[data-testid="stElementContainer"] div[role="radiogroup"] {
+    justify-content: flex-start;
+    gap: 1.5rem;
+}
+div[data-testid="stElementContainer"]:has(.learn-speed-card) + div[data-testid="stElementContainer"] label {
+    color: var(--text-secondary) !important;
+    font-weight: 600;
+}
+.video-not-found {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    gap: 0.5rem;
+}
+
 /* ─── QUIZ TAB ─── */
 .quiz-scoreboard {
     display: flex;
@@ -975,6 +1368,7 @@ div[data-baseweb="select"] > div:hover {
     flex-wrap: wrap;
     margin: 1rem 0 1.5rem 0;
     animation: fadeInUp 0.4s ease-out;
+    contain: layout paint;
 }
 .quiz-score-item {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), var(--surface));
@@ -988,6 +1382,7 @@ div[data-baseweb="select"] > div:hover {
     min-width: 130px;
     transition: var(--transition);
     box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.05);
+    will-change: transform;
 }
 .quiz-score-item:hover {
     border-color: var(--border-hover);
@@ -1030,6 +1425,8 @@ div[data-baseweb="select"] > div:hover {
     overflow: hidden;
     animation: scaleIn 0.4s ease-out;
     box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.05);
+    contain: layout paint;
+    transform: translateZ(0);
 }
 .quiz-question-card::before {
     content: '';
@@ -1081,6 +1478,20 @@ div[data-baseweb="select"] > div:hover {
     box-sizing: border-box;
     transition: var(--transition);
     font-size: 1.05rem;
+    contain: layout paint;
+    will-change: transform;
+}
+
+.quiz-question-frame {
+    animation: stateSoftIn 0.22s ease-out;
+    transform: translateZ(0);
+}
+.quiz-answer-frame {
+    animation: stateSoftIn 0.18s ease-out;
+}
+@keyframes stateSoftIn {
+    from { opacity: 0.72; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 .answer-correct {
     background: rgba(34, 197, 94, 0.1);
@@ -1149,17 +1560,6 @@ div[data-baseweb="select"] > div:hover {
     padding-bottom: 0.8rem;
     letter-spacing: 0.05em;
 }
-.char-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 14px;
-}
-@media (max-width: 1024px) {
-    .char-grid { grid-template-columns: repeat(4, 1fr); }
-}
-@media (max-width: 600px) {
-    .char-grid { grid-template-columns: repeat(3, 1fr); }
-}
 
 .char-card-ui {
     background: var(--surface);
@@ -1208,17 +1608,20 @@ div[data-baseweb="select"] > div:hover {
     filter: drop-shadow(0 0 8px rgba(255, 153, 51, 0.2));
 }
 .char-card-ui:hover .char-main-txt {
-    top: 25px;
-    transform: translate(-50%, -50%) scale(0.45);
+    top: 23px;
+    transform: translate(-50%, -50%) scale(0.42);
     color: var(--gold-light);
 }
 
 .char-details-ui {
     position: absolute;
-    top: 55px; left: 0;
+    top: 45px; left: 0;
     width: 100%;
+    max-height: 108px;
+    overflow-y: auto;
+    overflow-x: hidden;
     opacity: 0;
-    padding: 0 12px;
+    padding: 0 12px 10px 12px;
     box-sizing: border-box;
     transform: translateY(15px);
     transition: var(--transition);
@@ -1226,18 +1629,48 @@ div[data-baseweb="select"] > div:hover {
     flex-direction: column;
     align-items: center;
     pointer-events: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    overscroll-behavior: contain;
+    mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+}
+.char-details-ui::-webkit-scrollbar {
+    display: none;
 }
 .char-card-ui:hover .char-details-ui {
     opacity: 1;
     transform: translateY(0);
+    pointer-events: auto;
 }
 
-.cd-name { font-weight: 700; color: var(--text-primary); margin-bottom: 2px; font-size: 0.9rem; }
-.cd-pron { font-style: italic; color: var(--text-secondary); font-size: 0.75rem; margin-bottom: 6px; }
-.cd-ex { color: var(--gold); font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; }
-.cd-note { font-size: 0.65rem; color: var(--text-muted); line-height: 1.3; }
+.cd-name { font-weight: 700; color: var(--text-primary); margin-bottom: 2px; font-size: 0.84rem; line-height: 1.2; }
+.cd-pron { font-style: italic; color: var(--text-secondary); font-size: 0.7rem; margin-bottom: 5px; line-height: 1.2; }
+.cd-ex { color: var(--gold); font-weight: 600; font-size: 0.72rem; margin-bottom: 4px; line-height: 1.25; }
+.cd-note { font-size: 0.62rem; color: var(--text-muted); line-height: 1.25; }
 
 /* ─── FOOTER ─── */
+.block-container {
+    animation: appStateIn 0.18s ease-out;
+}
+.stSpinner {
+    animation: appStateIn 0.16s ease-out;
+}
+.stSpinner::after {
+    content: "Akshar.AI";
+    display: inline-block;
+    margin-left: 0.55rem;
+    color: var(--gold);
+    font-family: 'Cinzel', serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+}
+@keyframes appStateIn {
+    from { opacity: 0.84; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .app-footer {
     text-align: center;
     padding: 3rem 0 1rem 0;
@@ -1407,6 +1840,184 @@ div[data-baseweb="select"] > div:hover {
     object-fit: contain;
 }
 
+/* ─── GLOBAL RESPONSIVE OVERRIDES ─── */
+@media (max-width: 1200px) {
+    .hero-card {
+        max-width: 100%;
+        padding: 2.2rem 1.5rem 1.8rem 1.5rem;
+    }
+    .hero-subtitle {
+        font-size: clamp(1rem, 2.2vw, 1.35rem);
+        letter-spacing: 0.09em;
+    }
+    .katha-section {
+        padding: 2.2rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .stTabs [data-baseweb="tab-list"] {
+        flex-wrap: wrap;
+        justify-content: stretch;
+        gap: 0.4rem;
+        padding: 0.45rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        flex: 1 1 calc(50% - 0.4rem);
+        min-width: 150px;
+        justify-content: center;
+        padding: 0.65rem 1rem;
+        font-size: 0.9rem;
+    }
+    .katha-hero {
+        padding: 2.4rem 1.2rem;
+    }
+    .katha-section {
+        padding: 1.5rem;
+    }
+    .stat-row, .team-row {
+        gap: 14px;
+    }
+    .quiz-image-container {
+        width: min(68vw, 260px);
+        height: min(68vw, 260px);
+    }
+}
+
+@media (max-width: 768px) {
+
+    /* Force Streamlit columns to stack on phones/tablets */
+    [data-testid="stHorizontalBlock"] {
+        gap: 0.75rem !important;
+        flex-wrap: wrap !important;
+    }
+    [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+
+    .hero-card {
+        margin: 1rem auto 1.5rem auto;
+        padding: 1.4rem 1rem 1.1rem 1rem;
+        border-radius: 16px;
+    }
+    .hero-subtitle {
+        font-size: 0.88rem;
+        letter-spacing: 0.08em;
+        margin-bottom: 1.1rem;
+    }
+    .gold-divider {
+        width: 78%;
+        margin-bottom: 1.2rem;
+    }
+
+    .katha-hero {
+        margin: 1rem auto;
+        padding: 1.8rem 0.95rem 1.2rem 0.95rem;
+    }
+    .katha-eyebrow {
+        font-size: 0.9rem;
+        letter-spacing: 0.12em;
+    }
+    .katha-subtitle {
+        margin-bottom: 1.7rem;
+        line-height: 1.6;
+    }
+    .katha-section {
+        margin-bottom: 1.4rem;
+        padding: 1rem;
+        border-radius: 14px;
+    }
+    .section-body {
+        font-size: 0.92rem;
+        line-height: 1.72;
+    }
+    .katha-quote {
+        padding: 12px 14px;
+        margin: 18px 0;
+    }
+
+    .premium-cat-card,
+    .closing-card,
+    .team-card,
+    .stat-card {
+        border-radius: 14px;
+    }
+    .premium-cat-card {
+        padding: 1.2rem 0.95rem;
+    }
+    .cat-title {
+        font-size: 1.05rem;
+    }
+    .cat-subtitle {
+        font-size: 0.8rem;
+        margin-bottom: 0.9rem;
+    }
+
+    .char-grid {
+        gap: 9px;
+    }
+    .char-card-ui {
+        min-height: 125px;
+        padding: 0.6rem;
+    }
+    .char-main-txt {
+        font-size: 2.1rem;
+    }
+
+    .quiz-feedback {
+        font-size: 0.95rem;
+        padding: 0.9rem;
+    }
+    .quiz-hint-box {
+        padding: 1rem;
+        max-width: 100%;
+    }
+
+    .app-footer {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        text-align: center;
+        padding-top: 2rem;
+    }
+
+    [data-testid="stButton"] button,
+    .stDownloadButton > button,
+    [data-testid="baseButton-secondary"] {
+        width: 100% !important;
+        min-height: 42px;
+    }
+}
+
+@media (max-width: 480px) {
+    .stTabs [data-baseweb="tab"] {
+        flex: 1 1 100%;
+        min-width: 100%;
+        font-size: 0.86rem;
+        padding: 0.56rem 0.7rem;
+    }
+    .hero-subtitle {
+        font-size: 0.8rem;
+        letter-spacing: 0.05em;
+    }
+    .quiz-image-container {
+        width: min(78vw, 220px);
+        height: min(78vw, 220px);
+    }
+    .katha-title {
+        font-size: clamp(1.5rem, 8vw, 2rem);
+    }
+    .katha-section {
+        padding: 0.9rem;
+    }
+    .section-heading-katha {
+        font-size: 1.2rem;
+    }
+}
+
 
 /* ─── HIDE STREAMLIT DEFAULTS ─── */
 #MainMenu {visibility: hidden;}
@@ -1420,7 +2031,7 @@ st.markdown(css, unsafe_allow_html=True)
 st.markdown("""
 <div class="hero-card">
     <div class="hero-title">
-        <h1>AKSHAR.AI</h1>
+        <h1>Akshar.AI</h1>
     </div>
     <div class="hero-subtitle">Every Letter, Alive Again</div>
     <div class="gold-divider"></div>
@@ -1461,7 +2072,7 @@ tab_icons_html = f"""
 </script>
 """
 import streamlit.components.v1 as components
-components.html(tab_icons_html, height=0, width=0)
+st.html(tab_icons_html)
 
 @st.cache_resource
 def initialize_system():
@@ -1478,6 +2089,12 @@ def load_keras_model():
         return tf.keras.models.load_model(KERAS_MODEL_PATH)
     except Exception as e:
         return e
+
+@st.cache_resource
+def get_cached_last_conv_layer(_keras_model):
+    if _keras_model is None:
+        return None
+    return get_last_conv_layer(_keras_model)
 
 keras_model_result = load_keras_model()
 if isinstance(keras_model_result, Exception):
@@ -1767,11 +2384,11 @@ with tab1:
         box-shadow: var(--shadow-hover);
     }
     .team-avatar {
-        width: 56px;
-        height: 56px;
+        width: 100px;
+        height: 100px;
         background: linear-gradient(135deg, var(--gold-dark), #7a4e1a);
         border-radius: 50%;
-        margin: 0 auto 12px;
+        margin: 0 auto 16px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1779,6 +2396,14 @@ with tab1:
         color: #1a0e05;
         font-family: 'Inter', sans-serif;
         font-weight: 700;
+        overflow: hidden;
+        border: 2px solid rgba(255, 153, 51, 0.4);
+        box-shadow: 0 8px 20px rgba(255, 153, 51, 0.15);
+    }
+    .team-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
     .team-name {
         font-size: 0.95rem;
@@ -2043,7 +2668,19 @@ with tab1:
     """, unsafe_allow_html=True)
 
     # ── TEAM ─────────────────────────────────────────────────────────
-    st.markdown("""
+    devendra_b64 = ""
+    raj_b64 = ""
+    prasad_b64 = ""
+    
+    devendra_path = "Photos/Devendra.jpg"
+    raj_path = "Photos/Raj_Veer.jpeg"
+    prasad_path = "Photos/Prasad_Raibole.jpeg"
+    
+    if os.path.exists(devendra_path): devendra_b64 = get_file_b64(devendra_path, os.path.getmtime(devendra_path))
+    if os.path.exists(raj_path): raj_b64 = get_file_b64(raj_path, os.path.getmtime(raj_path))
+    if os.path.exists(prasad_path): prasad_b64 = get_file_b64(prasad_path, os.path.getmtime(prasad_path))
+
+    st.markdown(f"""
     <div class="katha-section" style="text-align:center;">
         <div class="section-tag">The Builders</div>
         <div class="section-heading-katha">Who Made This</div>
@@ -2053,15 +2690,21 @@ with tab1:
         </div>
         <div class="team-row">
             <div class="team-card">
-                <div class="team-avatar">द</div>
+                <div class="team-avatar">
+{"<img src='data:image/jpeg;base64," + devendra_b64 + "' />" if devendra_b64 else "द"}
+                </div>
                 <div class="team-name">Devendra Suhas Rajhans</div>
             </div>
             <div class="team-card">
-                <div class="team-avatar">र</div>
+                <div class="team-avatar">
+{"<img src='data:image/jpeg;base64," + raj_b64 + "' />" if raj_b64 else "र"}
+                </div>
                 <div class="team-name">Raj Dipak Veer</div>
             </div>
             <div class="team-card">
-                <div class="team-avatar">प्र</div>
+                <div class="team-avatar">
+{"<img src='data:image/jpeg;base64," + prasad_b64 + "' />" if prasad_b64 else "प्र"}
+                </div>
                 <div class="team-name">Prasad Pramod Raibole</div>
             </div>
         </div>
@@ -2112,35 +2755,101 @@ with tab2:
 
     # Merged Upload Section
     col_upload_top_1, col_upload_top_2 = st.columns([1.2, 1], gap="large", vertical_alignment="center")
-    
+
     with col_upload_top_1:
         st.markdown(f"""
             <div class="upload-label">
                 <span class="icon-inline">{icon("upload", 20)}</span>
                 Upload Modi Character
             </div>
-            <div class="upload-sublabel">Drag and drop or click to browse — Supports JPG, JPEG, PNG</div>
+            <div class="upload-sublabel">Drag and drop, browse, or capture a square photo from camera.</div>
         """, unsafe_allow_html=True)
-        
-    with col_upload_top_2:
-        uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
 
-    if uploaded_file is None:
+    with col_upload_top_2:
+        upload_btn_col, camera_btn_col = st.columns([2, 1], gap="small")
+        with upload_btn_col:
+            uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+        with camera_btn_col:
+            if st.button("Camera", key="open_recognize_camera", icon=":material/photo_camera:", width='stretch'):
+                st.session_state.recognize_camera_open = True
+                st.session_state.recognize_camera_pending = None
+                st.rerun()
+
+    camera_file = None
+    if st.session_state.get("recognize_camera_open"):
+        st.markdown(f"""
+        <div class="recognize-source-card">
+            <div class="recognize-source-title">
+                <span class="icon-inline">{icon("scan", 16)}</span>
+                Camera Capture
+            </div>
+            <div class="recognize-source-copy">Capture one clear character. The photo will be cropped to 1:1 before upload.</div>
+        </div>
+        """, unsafe_allow_html=True)
+        close_cam_col1, close_cam_col2 = st.columns([4, 1])
+        with close_cam_col2:
+            if st.button("Close", icon=":material/close:", key="close_camera_top", width='stretch'):
+                st.session_state.recognize_camera_open = False
+                st.rerun()
+
+        camera_nonce = st.session_state.get("recognize_camera_nonce", 0)
+        camera_capture = st.camera_input("Capture square image", key=f"recognize_camera_capture_{camera_nonce}", label_visibility="collapsed")
+        if camera_capture is not None:
+            captured_square = crop_center_square(Image.open(camera_capture))
+            st.image(captured_square, caption="Square preview", width=260)
+            confirm_col, retake_col, cancel_col = st.columns(3)
+            with confirm_col:
+                if st.button("Use This Photo", key="confirm_recognize_camera", type="primary", width='stretch'):
+                    buffer = io.BytesIO()
+                    captured_square.save(buffer, format="PNG")
+                    st.session_state.recognize_camera_image = buffer.getvalue()
+                    st.session_state.recognize_camera_open = False
+                    st.rerun()
+            with retake_col:
+                if st.button("Retake", key="retake_recognize_camera", width='stretch'):
+                    st.session_state.recognize_camera_image = None
+                    st.session_state.recognize_camera_nonce = camera_nonce + 1
+                    st.rerun()
+            with cancel_col:
+                if st.button("Cancel", key="cancel_recognize_camera", width='stretch'):
+                    st.session_state.recognize_camera_open = False
+                    st.rerun()
+
+    camera_image_bytes = st.session_state.get("recognize_camera_image")
+    image_source = uploaded_file or (io.BytesIO(camera_image_bytes) if camera_image_bytes else None)
+    image_source_name = "camera" if camera_image_bytes and not uploaded_file else "image"
+
+    if image_source is None:
         st.markdown(f"""
         <div class="empty-state">
             <div class="empty-state-icon">{icon("feather", 48, "#6b5c47")}</div>
             <div class="empty-state-title">Awaiting your manuscript</div>
-            <div class="empty-state-sub">Upload a Modi character image above to begin recognition</div>
+            <div class="empty-state-sub">Upload or capture a Modi character image above to begin recognition</div>
         </div>
         """, unsafe_allow_html=True)
 
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
+    if image_source is not None:
+        image_bytes = image_source.getvalue() if hasattr(image_source, "getvalue") else image_source.read()
+        image_hash = hashlib.sha256(image_bytes).hexdigest()
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        if image_source_name == "camera":
+            image = crop_center_square(image)
+            camera_buffer = io.BytesIO()
+            image.save(camera_buffer, format="PNG")
+            image_hash = hashlib.sha256(camera_buffer.getvalue()).hexdigest()
 
         if interpreter is not None and modi_labels:
             with st.spinner("Analyzing your character..."):
                 try:
-                    result = predict(image, interpreter, modi_labels, idx_to_class)
+                    cached_recognition = st.session_state.get("recognize_last_result")
+                    if cached_recognition and cached_recognition.get("image_hash") == image_hash:
+                        result = cached_recognition["result"]
+                    else:
+                        result = predict(image, interpreter, modi_labels, idx_to_class)
+                        st.session_state.recognize_last_result = {
+                            "image_hash": image_hash,
+                            "result": result,
+                        }
 
                     if not result['valid']:
                         st.error(f"⚠️ {result['reason']}")
@@ -2152,15 +2861,21 @@ with tab2:
                         st.info("Tips: Upload a single clear character. Good lighting. Black ink on white background works best.")
                     else:
                         predictions = result['results']
-                        try:
-                            last_layer = get_last_conv_layer(keras_model) if keras_model else None
-                            if last_layer and keras_model:
-                                overlay_img = generate_gradcam(image, keras_model, last_layer)
-                            else:
+                        cached_recognition = st.session_state.get("recognize_last_result")
+                        overlay_img = cached_recognition.get("overlay_img") if cached_recognition else None
+                        if overlay_img is None:
+                            try:
+                                last_layer = get_cached_last_conv_layer(keras_model) if keras_model else None
+                                if last_layer and keras_model:
+                                    overlay_img = generate_gradcam(image, keras_model, last_layer)
+                                else:
+                                    overlay_img = image
+                            except Exception as e:
+                                st.warning(f"Grad-CAM could not be generated: {e}")
                                 overlay_img = image
-                        except Exception as e:
-                            st.warning(f"Grad-CAM could not be generated: {e}")
-                            overlay_img = image
+                            if cached_recognition and cached_recognition.get("image_hash") == image_hash:
+                                cached_recognition["overlay_img"] = overlay_img
+                                st.session_state.recognize_last_result = cached_recognition
 
                         st.markdown("<br>", unsafe_allow_html=True)
                         col_img1, col_img2 = st.columns(2, gap="large")
@@ -2174,7 +2889,7 @@ with tab2:
                                 <div class="image-card-sublabel">The image you uploaded for analysis</div>
                             </div>
                             """, unsafe_allow_html=True)
-                            st.image(image, use_container_width=True)
+                            st.image(image, width='stretch')
 
                         with col_img2:
                             st.markdown(f"""
@@ -2186,7 +2901,7 @@ with tab2:
                                 <div class="image-card-sublabel">Red regions show where our Model is focusing its attention</div>
                             </div>
                             """, unsafe_allow_html=True)
-                            st.image(overlay_img, use_container_width=True)
+                            st.image(overlay_img, width='stretch')
 
                         st.markdown("<br>", unsafe_allow_html=True)
                         best_pred = predictions[0]
@@ -2198,6 +2913,13 @@ with tab2:
                             <div class="prediction-label">{label_display}</div>
                         </div>
                         """, unsafe_allow_html=True)
+                        prediction_audio_path = os.path.join("audio files", f"{best_pred['devanagari']}.mp3")
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        render_themed_audio(
+                            prediction_audio_path,
+                            f"recognize_{best_pred['class_name']}",
+                            title="Pronunciation Audio",
+                        )
 
                         st.markdown("<br>", unsafe_allow_html=True)
                         st.markdown(f"""
@@ -2230,7 +2952,7 @@ with tab2:
                 except Exception as e:
                     st.error(f"Error during prediction or visualization: {e}")
         else:
-            st.image(image, caption="Uploaded Image", use_container_width=True)
+            st.image(image, caption="Uploaded Image", width='stretch')
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════
@@ -2296,9 +3018,9 @@ with tab3:
     for idx, cat in enumerate(learn_categories):
         with cols[idx]:
             is_active = st.session_state.get("learn_active_cat") == cat["key"]
-            cat_cls = "premium-cat-card active" if is_active else "premium-cat-card"
+            cat_cls = "premium-cat-card learn-category-card active" if is_active else "premium-cat-card learn-category-card"
             icon_svg = icon(cat["icon_name"], 28)
-            cat_html = f"""
+            cat_html = f'''
             <div class="{cat_cls}">
                 <div class="cat-icon-container">{icon_svg}</div>
                 <div class="cat-title">{cat["title"]}</div>
@@ -2307,9 +3029,9 @@ with tab3:
                     <div class="cat-progress-fill" style="width: {(cat["learned"]/max(1, cat["total"]))*100}%"></div>
                 </div>
             </div>
-            """
+            '''
             st.markdown(cat_html, unsafe_allow_html=True)
-            if st.button("Explore", key=f"btn_cat_{cat['key']}", use_container_width=True):
+            if st.button(f"Open {cat['title']}", key=f"btn_cat_{cat['key']}", width='stretch'):
                 if st.session_state.get("learn_active_cat") == cat["key"]:
                     st.session_state["learn_active_cat"] = None
                 else:
@@ -2336,7 +3058,7 @@ with tab3:
                         if st.button(
                             btn_text,
                             key=f"learn_{active_cat['key']}_{key}",
-                            use_container_width=True,
+                            width='stretch',
                             type="primary" if is_learned else "secondary"
                         ):
                             st.session_state.learned_chars.add(key)
@@ -2367,6 +3089,454 @@ with tab3:
                     <div class="learn-detail-note">{info.get('historical_note', '')}</div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                audio_path = os.path.join("audio files", f"{info['devanagari']}.mp3")
+                if os.path.exists(audio_path):
+                    audio_b64 = get_file_b64(audio_path, os.path.getmtime(audio_path))
+                    audio_html = f"""
+                    <style>
+                    .learn-audio-card {{
+                        box-sizing: border-box;
+                        width: min(100%, 560px);
+                        margin: 0 auto;
+                        padding: 1rem 1.1rem;
+                        background: linear-gradient(135deg, rgba(255, 153, 51, 0.10), rgba(45, 20, 7, 0.92));
+                        border: 1px solid rgba(255, 153, 51, 0.28);
+                        border-top-color: rgba(255, 153, 51, 0.55);
+                        border-radius: 8px;
+                        box-shadow: 0 14px 36px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05);
+                        font-family: Inter, sans-serif;
+                    }}
+                    .learn-audio-title {{
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.45rem;
+                        color: #FF9933;
+                        font-size: 0.72rem;
+                        font-weight: 800;
+                        text-transform: uppercase;
+                        letter-spacing: 0.14em;
+                        margin-bottom: 0.75rem;
+                    }}
+                    .learn-audio-player {{
+                        display: grid;
+                        grid-template-columns: 40px 1fr auto;
+                        align-items: center;
+                        gap: 0.85rem;
+                    }}
+                    .learn-audio-play {{
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 8px;
+                        border: 1px solid rgba(255,153,51,0.42);
+                        background: linear-gradient(135deg, #FF9933, #B86619);
+                        color: #1A0D06;
+                        font-size: 1rem;
+                        font-weight: 900;
+                        cursor: pointer;
+                        box-shadow: 0 8px 18px rgba(255,153,51,0.18);
+                    }}
+                    .learn-audio-play:hover {{
+                        filter: brightness(1.08);
+                    }}
+                    .learn-audio-track {{
+                        appearance: none;
+                        -webkit-appearance: none;
+                        width: 100%;
+                        height: 8px;
+                        border-radius: 999px;
+                        background: linear-gradient(90deg, #FF9933 var(--progress, 0%), rgba(255,255,255,0.12) var(--progress, 0%));
+                        outline: none;
+                        cursor: pointer;
+                    }}
+                    .learn-audio-track::-webkit-slider-thumb {{
+                        -webkit-appearance: none;
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background: #FFD19A;
+                        border: 2px solid #FF9933;
+                        box-shadow: 0 0 12px rgba(255,153,51,0.45);
+                    }}
+                    .learn-audio-track::-moz-range-thumb {{
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background: #FFD19A;
+                        border: 2px solid #FF9933;
+                        box-shadow: 0 0 12px rgba(255,153,51,0.45);
+                    }}
+                    .learn-audio-time {{
+                        color: rgba(245, 238, 226, 0.78);
+                        font-size: 0.78rem;
+                        font-weight: 700;
+                        min-width: 80px;
+                        text-align: right;
+                        font-variant-numeric: tabular-nums;
+                    }}
+                    @media (max-width: 520px) {{
+                        .learn-audio-player {{
+                            grid-template-columns: 40px 1fr;
+                        }}
+                        .learn-audio-time {{
+                            grid-column: 1 / -1;
+                            text-align: center;
+                        }}
+                    }}
+                    </style>
+                    <div class="learn-audio-card">
+                        <div class="learn-audio-title">
+                            <span>{icon("headphones", 14)}</span>
+                            Pronunciation Audio
+                        </div>
+                        <div class="learn-audio-player">
+                            <button class="learn-audio-play" id="audioBtn_{selected_key}" type="button">▶</button>
+                            <input class="learn-audio-track" id="audioTrack_{selected_key}" type="range" min="0" max="100" value="0">
+                            <div class="learn-audio-time" id="audioTime_{selected_key}">0:00 / 0:00</div>
+                        </div>
+                        <audio id="learnAudio_{selected_key}" preload="metadata">
+                            <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+                        </audio>
+                    </div>
+                    <script>
+                    (function() {{
+                        const audio = document.getElementById('learnAudio_{selected_key}');
+                        const button = document.getElementById('audioBtn_{selected_key}');
+                        const track = document.getElementById('audioTrack_{selected_key}');
+                        const time = document.getElementById('audioTime_{selected_key}');
+
+                        function fmt(seconds) {{
+                            if (!Number.isFinite(seconds)) return '0:00';
+                            const m = Math.floor(seconds / 60);
+                            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+                            return `${{m}}:${{s}}`;
+                        }}
+                        function sync() {{
+                            const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+                            track.value = pct;
+                            track.style.setProperty('--progress', `${{pct}}%`);
+                            time.textContent = `${{fmt(audio.currentTime)}} / ${{fmt(audio.duration)}}`;
+                        }}
+                        button.addEventListener('click', () => {{
+                            if (audio.paused) {{
+                                audio.play();
+                                button.textContent = 'Ⅱ';
+                            }} else {{
+                                audio.pause();
+                                button.textContent = '▶';
+                            }}
+                        }});
+                        track.addEventListener('input', () => {{
+                            if (audio.duration) {{
+                                audio.currentTime = (Number(track.value) / 100) * audio.duration;
+                                sync();
+                            }}
+                        }});
+                        audio.addEventListener('loadedmetadata', sync);
+                        audio.addEventListener('timeupdate', sync);
+                        audio.addEventListener('ended', () => {{
+                            button.textContent = '▶';
+                            sync();
+                        }});
+                        sync();
+                    }})();
+                    </script>
+                    """
+                    st.iframe(audio_html, height=132)
+                else:
+                    st.markdown(f"""
+                    <div class="video-not-found" style="max-width: 520px; min-height: 72px; margin: 1rem auto 0 auto;">
+                        {icon("x_circle", 24, "#6b5c47")}
+                        <span>Pronunciation audio not yet available for this character</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # ── PRACTICE SECTION: Video + Drawing Canvas ──
+                st.markdown(f"""
+                <div class="practice-section-title" style="margin-top: 1.5rem;">
+                    <span class="icon-inline">{icon("pen_tool", 18)}</span>
+                    Practice — {info['devanagari']} ({info['english_name']})
+                </div>
+                """, unsafe_allow_html=True)
+
+                prac_col1, prac_col2 = st.columns(2, gap="large")
+                practice_media_size = 380
+
+                # ── Left: Drawing Video ──
+                with prac_col1:
+                    st.markdown(f"""
+                    <div class="practice-panel">
+                        <div class="practice-panel-label">
+                            <span class="icon-inline">{icon("refresh", 14)}</span>
+                            Stroke Animation
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    speed_choice = st.session_state.get("learn_animation_speed", "Normal")
+                    video_speed = 0.5 if speed_choice == "Slow" else 1.0
+                    video_key_aliases = {"oo": "uu", "t": "thh"}
+                    video_file_key = video_key_aliases.get(selected_key, selected_key)
+                    video_path = os.path.join("animation_modiscript", f"{video_file_key}.mp4")
+                    if os.path.exists(video_path):
+                        video_b64 = get_file_b64(video_path, os.path.getmtime(video_path))
+                        video_html = f"""
+                        <style>body,html{{overflow:hidden !important; margin:0; padding:0;}}::-webkit-scrollbar {{display: none;}}</style>
+                        <div style="width:min(100%, {practice_media_size}px); aspect-ratio:1/1; margin:0 auto;">
+                            <video id="learnVideo_{selected_key}_{speed_choice}" autoplay loop muted playsinline
+                                style="width:100%; height:100%; object-fit:contain; display:block; box-sizing:border-box;
+                                       border:2px solid rgba(255,153,51,0.25); border-radius:8px; background:#fffaf3;">
+                                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+                            </video>
+                        </div>
+                        <script>
+                        (function() {{
+                            const video = document.getElementById('learnVideo_{selected_key}_{speed_choice}');
+                            if (video) {{
+                                video.defaultPlaybackRate = {video_speed};
+                                video.playbackRate = {video_speed};
+                                video.load();
+                                video.playbackRate = {video_speed};
+                                video.play().catch(() => {{}});
+                            }}
+                        }})();
+                        </script>
+                        """
+                        st.iframe(video_html, height=practice_media_size + 8)
+                        st.markdown(f"""
+                        <div class="learn-speed-card">
+                            <div class="practice-panel-label">
+                                <span class="icon-inline">{icon("refresh", 14)}</span>
+                                Animation Speed
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        st.radio(
+                            "Animation speed",
+                            ["Normal", "Slow"],
+                            horizontal=True,
+                            key="learn_animation_speed",
+                            label_visibility="collapsed",
+                        )
+                    else:
+                        st.markdown(f"""
+                        <div class="video-not-found" style="width: min(100%, {practice_media_size}px); aspect-ratio: 1 / 1; margin: 0 auto; border: 2px solid rgba(255,153,51,0.25); border-radius: 8px; background: #fffaf3;">
+                            {icon("x_circle", 32, "#6b5c47")}
+                            <span>Stroke animation not yet available for this character</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                # ── Right: Drawing Canvas ──
+                with prac_col2:
+                    st.markdown(f"""
+                    <div class="practice-panel">
+                        <div class="practice-panel-label">
+                            <span class="icon-inline">{icon("pen_tool", 14)}</span>
+                            Your Turn — Draw It
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    canvas_key = f"canvas_{selected_key}"
+                    clear_count = st.session_state.get(f"clear_{canvas_key}", 0)
+                    ls_canvas_key = f"akshar_canvas_{selected_key}_{clear_count}"
+                    ls_score_key = f"akshar_score_{selected_key}_{clear_count}"
+                    canvas_html = f"""
+                    <style>body,html{{overflow:hidden !important; margin:0; padding:0;}}::-webkit-scrollbar {{display: none;}}</style>
+                    <div style="width:min(100%, {practice_media_size}px); aspect-ratio:1/1; margin:0 auto;">
+                        <canvas id="drawCanvas_{selected_key}_{clear_count}" width="{practice_media_size}" height="{practice_media_size}"
+                            style="border: 2px solid rgba(255,153,51,0.25); border-radius: 12px;
+                                   background: #fffaf3; cursor: crosshair; touch-action: none;
+                                   width: 100%; height: 100%; display: block; box-sizing: border-box;">
+                        </canvas>
+                    </div>
+                    <script>
+                    (function() {{
+                        const c = document.getElementById('drawCanvas_{selected_key}_{clear_count}');
+                        const ctx = c.getContext('2d');
+                        let drawing = false;
+                        ctx.lineWidth = 4;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.strokeStyle = '#1a0e05';
+
+                        // Restore drawing from localStorage
+                        var savedData = localStorage.getItem('{ls_canvas_key}');
+                        if (savedData) {{
+                            var restoreImg = new Image();
+                            restoreImg.onload = function() {{
+                                ctx.drawImage(restoreImg, 0, 0);
+                            }};
+                            restoreImg.src = savedData;
+                        }}
+
+                        function getPos(e) {{
+                            const r = c.getBoundingClientRect();
+                            const t = e.touches ? e.touches[0] : e;
+                            return [
+                                (t.clientX - r.left) * (c.width / r.width),
+                                (t.clientY - r.top) * (c.height / r.height)
+                            ];
+                        }}
+                        
+                        function sendStore() {{
+                            var dataUrl = c.toDataURL("image/png");
+                            try {{ localStorage.setItem('{ls_canvas_key}', dataUrl); }} catch(e) {{}}
+                        }}
+
+                        c.addEventListener('mousedown', e => {{ drawing = true; ctx.beginPath(); const [x,y] = getPos(e); ctx.moveTo(x,y); }});
+                        c.addEventListener('mousemove', e => {{ if (!drawing) return; const [x,y] = getPos(e); ctx.lineTo(x,y); ctx.stroke(); }});
+                        c.addEventListener('mouseup', () => {{ drawing = false; sendStore(); }});
+                        c.addEventListener('mouseleave', () => {{ if(drawing) sendStore(); drawing = false; }});
+                        c.addEventListener('touchstart', e => {{ e.preventDefault(); drawing = true; ctx.beginPath(); const [x,y] = getPos(e); ctx.moveTo(x,y); }});
+                        c.addEventListener('touchmove', e => {{ e.preventDefault(); if (!drawing) return; const [x,y] = getPos(e); ctx.lineTo(x,y); ctx.stroke(); }});
+                        c.addEventListener('touchend', () => {{ drawing = false; sendStore(); }});
+                    }})();
+                    </script>
+                    """
+                    st.iframe(canvas_html, height=practice_media_size + 8)
+
+                    st.markdown(f"""
+                    <div class="learn-speed-card" style="margin-top: 0; padding-top: 0.8rem; padding-bottom: 0.8rem;">
+                        <div class="practice-panel-label" style="justify-content:center; align-items:center; margin-bottom: 0;">
+                            <span class="icon-inline">{icon("activity", 14)}</span>
+                            Your Score
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    score_display_html = ("""<style>
+                    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap');
+                    body, html { margin:0; padding:0; overflow:hidden; background:transparent; }
+                    </style>
+                    <div id="scoreVal" style="text-align:center; font-family:'Cinzel',serif; font-size:2rem; font-weight:700; color:#FF9933; padding:0.2rem 0;">--/10</div>
+                    <div id="feedbackVal" style="text-align:center; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size:1rem; font-weight:600; color:rgba(255, 255, 255, 0.7); margin-top:-5px;"></div>
+                    <script>
+                    (function() {
+                        function update() {
+                            var s = localStorage.getItem('__SCORE_KEY__');
+                            document.getElementById('scoreVal').textContent = (s ? s : '--') + '/10';
+                            var feedback = '';
+                            if (s) {
+                                var scoreNum = parseInt(s, 10);
+                                if (scoreNum >= 8) feedback = 'Excellent!';
+                                else if (scoreNum >= 6) feedback = 'Good job';
+                                else feedback = 'Keep practicing';
+                            }
+                            document.getElementById('feedbackVal').textContent = feedback;
+                        }
+                        update();
+                        setInterval(update, 300);
+                    })();
+                    </script>
+                    """.replace('__SCORE_KEY__', ls_score_key))
+                    st.iframe(score_display_html, height=85)
+
+                    eval_col, clear_col = st.columns(2)
+                    with eval_col:
+                        if st.button("✨ Evaluate", key=f"eval_btn_{selected_key}", type="primary", width='stretch'):
+                            st.session_state[f"trigger_eval_{selected_key}"] = True
+                            st.rerun()
+
+                    with clear_col:
+                        if st.button("🗑️ Clear", key=f"clear_btn_{selected_key}", width='stretch'):
+                            st.session_state[f"clear_{canvas_key}"] = clear_count + 1
+                            st.rerun()
+
+                    # --- Client-side evaluation via JS ---
+                    if st.session_state.pop(f"trigger_eval_{selected_key}", False):
+                        devanagari_char = info.get("devanagari", "")
+                        ref_path = os.path.join("assets", "reference_images", f"{devanagari_char}.png")
+                        if os.path.exists(ref_path):
+                            ref_b64 = get_file_b64(ref_path, os.path.getmtime(ref_path))
+                            eval_script = ("""<script>
+                            (function() {
+                                var canvasData = localStorage.getItem('__CANVAS_KEY__');
+                                if (!canvasData) { localStorage.setItem('__SCORE_KEY__', '0'); return; }
+                                var canvasImg = new Image();
+                                canvasImg.onload = function() {
+                                    var refImg = new Image();
+                                    refImg.onload = function() {
+                                        var score = compareImages(canvasImg, refImg);
+                                        localStorage.setItem('__SCORE_KEY__', String(score));
+                                    };
+                                    refImg.src = 'data:image/png;base64,__REF_B64__';
+                                };
+                                canvasImg.src = canvasData;
+                                function compareImages(img1, img2) {
+                                    var size = 64;
+                                    function processImage(img) {
+                                        var c = document.createElement('canvas');
+                                        c.width = img.naturalWidth || size;
+                                        c.height = img.naturalHeight || size;
+                                        var ctx = c.getContext('2d');
+                                        ctx.fillStyle = '#ffffff';
+                                        ctx.fillRect(0, 0, c.width, c.height);
+                                        ctx.drawImage(img, 0, 0);
+                                        var data = ctx.getImageData(0, 0, c.width, c.height).data;
+                                        var w = c.width, h = c.height;
+                                        var minX = w, maxX = 0, minY = h, maxY = 0, hasStroke = false;
+                                        for (var y = 0; y < h; y++) {
+                                            for (var x = 0; x < w; x++) {
+                                                var i = (y * w + x) * 4;
+                                                var g = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+                                                if (g < 200) {
+                                                    hasStroke = true;
+                                                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                                                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                                                }
+                                            }
+                                        }
+                                        if (!hasStroke) {
+                                            var blank = document.createElement('canvas');
+                                            blank.width = size; blank.height = size;
+                                            var bCtx = blank.getContext('2d');
+                                            bCtx.fillStyle = '#ffffff'; bCtx.fillRect(0,0,size,size);
+                                            return bCtx.getImageData(0,0,size,size);
+                                        }
+                                        var pad = 10;
+                                        minX = Math.max(0, minX-pad); minY = Math.max(0, minY-pad);
+                                        maxX = Math.min(w-1, maxX+pad); maxY = Math.min(h-1, maxY+pad);
+                                        var cropW = maxX-minX+1, cropH = maxY-minY+1;
+                                        var side2 = Math.max(cropW, cropH);
+                                        var sq = document.createElement('canvas');
+                                        sq.width = side2; sq.height = side2;
+                                        var sqCtx = sq.getContext('2d');
+                                        sqCtx.fillStyle = '#ffffff'; sqCtx.fillRect(0,0,side2,side2);
+                                        sqCtx.drawImage(c, minX, minY, cropW, cropH,
+                                                       (side2-cropW)/2, (side2-cropH)/2, cropW, cropH);
+                                        var rs = document.createElement('canvas');
+                                        rs.width = size; rs.height = size;
+                                        var rsCtx = rs.getContext('2d');
+                                        rsCtx.drawImage(sq, 0, 0, size, size);
+                                        return rsCtx.getImageData(0, 0, size, size);
+                                    }
+                                    var p1 = processImage(img1), p2 = processImage(img2);
+                                    var mse = 0, pixels = size * size;
+                                    for (var i = 0; i < p1.data.length; i += 4) {
+                                        var diff = (p1.data[i] - p2.data[i]) / 255.0;
+                                        mse += diff * diff;
+                                    }
+                                    mse /= pixels;
+                                    var similarity = Math.max(0, 1 - (mse / 0.15));
+                                    var base_score = Math.floor(similarity * 10);
+                                    var final_score = base_score;
+                                    if (base_score <= 2) {
+                                        final_score = 1;
+                                    } else if (base_score <= 5) {
+                                        final_score = base_score + 3;
+                                    } else if (base_score <= 7) {
+                                        final_score = base_score + 2;
+                                    }
+                                    return Math.max(0, Math.min(10, final_score));
+                                }
+                            })();
+                            </script>""")
+                            eval_script = eval_script.replace('__CANVAS_KEY__', ls_canvas_key)
+                            eval_script = eval_script.replace('__SCORE_KEY__', ls_score_key)
+                            eval_script = eval_script.replace('__REF_B64__', ref_b64)
+                            st.iframe(eval_script, height=1)
+
 
     total_chars = sum(len([k for k in cat["keys"] if k in modi_labels]) for cat in learn_categories)
     total_learned = len(st.session_state.learned_chars)
@@ -2425,13 +3595,18 @@ with tab4:
         def get_pool(types):
             return [k for k, v in modi_labels.items() if v.get("character_type") in types]
 
+        quiz_pools = {
+            cat["key"]: get_pool(cat["types"])
+            for cat in quiz_categories
+        }
+
         # 2. Landing Page / Category Selection
         if not st.session_state.quiz_session_active:
             st.markdown("<br>", unsafe_allow_html=True)
             cols = st.columns(3, gap="medium")
             for idx, cat in enumerate(quiz_categories):
                 with cols[idx]:
-                    pool_keys = get_pool(cat["types"])
+                    pool_keys = quiz_pools[cat["key"]]
                     total_chars = len(pool_keys)
                     seen_count = len([k for k in pool_keys if k in st.session_state.quiz_progress[cat["key"]]["seen"]])
                     
@@ -2451,7 +3626,7 @@ with tab4:
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    if st.button(f"Start Quiz", key=f"start_quiz_{cat['key']}", use_container_width=True, type="primary"):
+                    if st.button(f"Start Quiz", key=f"start_quiz_{cat['key']}", width='stretch', type="primary"):
                         st.session_state.quiz_session_active = True
                         st.session_state.quiz_selected_category = cat["key"]
                         st.session_state.quiz_current_index = 0
@@ -2460,7 +3635,7 @@ with tab4:
                         st.session_state.quiz_selected_option = None
                         
                         # Generate 5 questions
-                        available_pool = get_pool(cat["types"])
+                        available_pool = quiz_pools[cat["key"]]
                         unseen = [k for k in available_pool if k not in st.session_state.quiz_progress[cat["key"]]["seen"]]
                         
                         questions = []
@@ -2539,11 +3714,11 @@ with tab4:
                 
                 c1, c2 = st.columns(2)
                 with c1:
-                    if st.button("Play Another", type="primary", use_container_width=True):
+                    if st.button("Play Another", type="primary", width='stretch'):
                         st.session_state.quiz_session_active = False
                         st.rerun()
                 with c2:
-                    if st.button("Back to Categories", use_container_width=True):
+                    if st.button("Back to Categories", width='stretch'):
                         st.session_state.quiz_session_active = False
                         st.rerun()
                         
@@ -2565,9 +3740,7 @@ with tab4:
                     img_path = f"assets/sample_images/{q_data['correct_key']}.jpg"
                     if os.path.exists(img_path):
                         # Use markdown to enforce styling on image
-                        import base64
-                        with open(img_path, "rb") as f:
-                            img_b64 = base64.b64encode(f.read()).decode()
+                        img_b64 = get_file_b64(img_path, os.path.getmtime(img_path))
                         st.markdown(f"""
                         <div class="quiz-image-container">
                             <img src="data:image/jpeg;base64,{img_b64}" />
@@ -2597,8 +3770,12 @@ with tab4:
                         </div>
                         <br>
                     """, unsafe_allow_html=True)
-                    # Use standard Streamlit audio
-                    st.audio(f"audio files/{correct_info['devanagari']}.mp3", format="audio/mp3", autoplay=True)
+                    render_themed_audio(
+                        os.path.join("audio files", f"{correct_info['devanagari']}.mp3"),
+                        f"quiz_{q_idx}_{q_data['correct_key']}",
+                        title="Listen & Identify",
+                        autoplay=True,
+                    )
                     st.markdown("</div>", unsafe_allow_html=True)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -2627,7 +3804,7 @@ with tab4:
                             else:
                                 st.markdown(f'<div class="answer-card answer-dim">{btn_txt}</div>', unsafe_allow_html=True)
                         else:
-                            if st.button(btn_txt, key=f"opt_{q_idx}_{i}", use_container_width=True):
+                            if st.button(btn_txt, key=f"opt_{q_idx}_{i}", width='stretch'):
                                 st.session_state.quiz_answered_current = True
                                 st.session_state.quiz_selected_option = opt_key
                                 
@@ -2660,82 +3837,94 @@ with tab4:
                         
                         # Short simple Web Audio beep + Confetti
                         if "feedback_played" not in st.session_state.quiz_session_questions[q_idx]:
-                            components.html("""
-                            <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+                            st.iframe("""
                             <script>
                                 try {
                                     const parentWindow = window.parent || window;
-                                    // Play minimal success beep
-                                    const AudioContext = parentWindow.AudioContext || parentWindow.webkitAudioContext || window.AudioContext || window.webkitAudioContext;
-                                    const ctx = new AudioContext();
-                                    if (ctx.state === 'suspended') { ctx.resume(); }
-                                    const osc = ctx.createOscillator();
-                                    const gain = ctx.createGain();
-                                    osc.type = 'sine';
-                                    osc.frequency.setValueAtTime(600, ctx.currentTime);
-                                    osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-                                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-                                    osc.connect(gain);
-                                    gain.connect(ctx.destination);
-                                    osc.start();
-                                    osc.stop(ctx.currentTime + 0.1);
-
-                                    // Confetti
                                     const parentDoc = parentWindow.document;
-                                    const canvas = parentDoc.createElement('canvas');
-                                    canvas.style.position = 'fixed';
-                                    canvas.style.top = '0';
-                                    canvas.style.left = '0';
-                                    canvas.style.width = '100vw';
-                                    canvas.style.height = '100vh';
-                                    canvas.style.pointerEvents = 'none';
-                                    canvas.style.zIndex = '999999';
-                                    canvas.style.opacity = '1';
-                                    canvas.style.transition = 'opacity 1s ease-out';
-                                    parentDoc.body.appendChild(canvas);
+                                    function playSuccessBeep() {
+                                        const AudioContext = parentWindow.AudioContext || parentWindow.webkitAudioContext || window.AudioContext || window.webkitAudioContext;
+                                        const ctx = new AudioContext();
+                                        if (ctx.state === 'suspended') { ctx.resume(); }
+                                        const osc = ctx.createOscillator();
+                                        const gain = ctx.createGain();
+                                        osc.type = 'sine';
+                                        osc.frequency.setValueAtTime(600, ctx.currentTime);
+                                        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                                        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+                                        osc.connect(gain);
+                                        gain.connect(ctx.destination);
+                                        osc.start();
+                                        osc.stop(ctx.currentTime + 0.1);
+                                    }
+                                    function fireConfetti() {
+                                        if (!parentWindow.confetti) { return; }
+                                        const canvas = parentDoc.createElement('canvas');
+                                        canvas.style.position = 'fixed';
+                                        canvas.style.top = '0';
+                                        canvas.style.left = '0';
+                                        canvas.style.width = '100vw';
+                                        canvas.style.height = '100vh';
+                                        canvas.style.pointerEvents = 'none';
+                                        canvas.style.zIndex = '999999';
+                                        canvas.style.opacity = '1';
+                                        canvas.style.transition = 'opacity 1s ease-out';
+                                        parentDoc.body.appendChild(canvas);
 
-                                    var myConfetti = confetti.create(canvas, {
-                                        resize: true,
-                                        useWorker: true
-                                    });
-
-                                    var duration = 1000;
-                                    var end = Date.now() + duration;
-                                    (function frame() {
-                                        myConfetti({
-                                            particleCount: 4,
-                                            angle: 60,
-                                            spread: 45,
-                                            origin: { x: 0, y: 0.8 },
-                                            colors: ['#FF9933', '#CC7A29', '#f8fafc', '#8B4513']
+                                        var myConfetti = parentWindow.confetti.create(canvas, {
+                                            resize: true,
+                                            useWorker: true
                                         });
-                                        myConfetti({
-                                            particleCount: 4,
-                                            angle: 120,
-                                            spread: 45,
-                                            origin: { x: 1, y: 0.8 },
-                                            colors: ['#FF9933', '#CC7A29', '#f8fafc', '#8B4513']
-                                        });
-                                        if (Date.now() < end) {
-                                            requestAnimationFrame(frame);
-                                        }
-                                    }());
 
-                                    // Smooth fade out and cleanup
-                                    setTimeout(() => {
-                                        canvas.style.opacity = '0';
-                                        setTimeout(() => {
-                                            if (parentDoc.body.contains(canvas)) {
-                                                parentDoc.body.removeChild(canvas);
+                                        var duration = 1000;
+                                        var end = Date.now() + duration;
+                                        (function frame() {
+                                            myConfetti({
+                                                particleCount: 4,
+                                                angle: 60,
+                                                spread: 45,
+                                                origin: { x: 0, y: 0.8 },
+                                                colors: ['#FF9933', '#CC7A29', '#f8fafc', '#8B4513']
+                                            });
+                                            myConfetti({
+                                                particleCount: 4,
+                                                angle: 120,
+                                                spread: 45,
+                                                origin: { x: 1, y: 0.8 },
+                                                colors: ['#FF9933', '#CC7A29', '#f8fafc', '#8B4513']
+                                            });
+                                            if (Date.now() < end) {
+                                                requestAnimationFrame(frame);
                                             }
+                                        }());
+
+                                        setTimeout(() => {
+                                            canvas.style.opacity = '0';
+                                            setTimeout(() => {
+                                                if (parentDoc.body.contains(canvas)) {
+                                                    parentDoc.body.removeChild(canvas);
+                                                }
+                                            }, 1000);
                                         }, 1000);
-                                    }, 1000);
-                                } catch (e) {
-                                    console.log('Audio/Confetti error:', e);
-                                }
+                                    }
+
+                                    playSuccessBeep();
+                                    if (parentWindow.confetti) {
+                                        fireConfetti();
+                                    } else if (!parentWindow.__aksharConfettiLoading) {
+                                        parentWindow.__aksharConfettiLoading = true;
+                                        const script = parentDoc.createElement('script');
+                                        script.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js';
+                                        script.onload = () => {
+                                            parentWindow.__aksharConfettiLoading = false;
+                                            fireConfetti();
+                                        };
+                                        parentDoc.head.appendChild(script);
+                                    }
+                                } catch (e) { console.log('Audio/Confetti error:', e); }
                             </script>
-                            """, height=0, width=0)
+                            """, height=1, width=1)
                             st.session_state.quiz_session_questions[q_idx]["feedback_played"] = True
                             
                     else:
@@ -2746,7 +3935,7 @@ with tab4:
                         """, unsafe_allow_html=True)
                         if "feedback_played" not in st.session_state.quiz_session_questions[q_idx]:
                             # Low pitch thud
-                            components.html("""
+                            st.iframe("""
                             <script>
                                 try {
                                     const parentWindow = window.parent || window;
@@ -2766,7 +3955,7 @@ with tab4:
                                     osc.stop(ctx.currentTime + 0.15);
                                 } catch(e) {}
                             </script>
-                            """, height=0, width=0)
+                            """, height=1, width=1)
                             st.session_state.quiz_session_questions[q_idx]["feedback_played"] = True
 
                     st.markdown(f"""
@@ -2784,7 +3973,7 @@ with tab4:
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     btn_text = "Next Question" if (q_idx < 4) else "View Results"
-                    if st.button(btn_text, type="primary", use_container_width=True):
+                    if st.button(btn_text, type="primary", width='stretch'):
                         st.session_state.quiz_current_index += 1
                         st.session_state.quiz_answered_current = False
                         st.session_state.quiz_selected_option = None
@@ -2925,3 +4114,178 @@ st.markdown(f"""
     AKSHAR.AI &nbsp;&middot;&nbsp; Preserving Heritage Through Intelligence &nbsp;&middot;&nbsp; Built with {heart_svg}
 </div>
 """, unsafe_allow_html=True)
+
+import time
+# ─── GLOBAL SMOOTH LOADING TRANSITION ──────────────────────────────────────────
+# Masks Streamlit rerenders with a premium loader. Executed via invisible iframe.
+loading_js = f"""
+<style>body {{ margin: 0; padding: 0; overflow: hidden; }}</style>
+<script>
+(function() {{
+    const p = window.parent.document;
+    
+    // 1. Inject Global Loader DOM & CSS if not present
+    if (!p.getElementById('akshar-loader-style')) {{
+        const style = p.createElement('style');
+        style.id = 'akshar-loader-style';
+        style.innerHTML = `
+            #akshar-global-loader {{
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: linear-gradient(135deg, rgba(15,8,4,0.7) 0%, rgba(26,13,6,0.92) 100%);
+                backdrop-filter: blur(12px) saturate(140%);
+                -webkit-backdrop-filter: blur(12px) saturate(140%);
+                z-index: 9999999;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }}
+            #akshar-global-loader.is-loading {{
+                opacity: 1;
+                pointer-events: auto;
+            }}
+            .akshar-loader-spinner {{
+                width: 65px;
+                height: 65px;
+                position: relative;
+                animation: rotateSpinner 2s linear infinite;
+                filter: drop-shadow(0 0 15px rgba(255,153,51,0.3));
+            }}
+            .akshar-loader-spinner circle {{
+                fill: none;
+                stroke: url(#loaderGoldGradient);
+                stroke-width: 3.5;
+                stroke-dasharray: 1, 200;
+                stroke-dashoffset: 0;
+                stroke-linecap: round;
+                animation: dashPulse 1.5s ease-in-out infinite;
+            }}
+            .akshar-loader-text {{
+                margin-top: 1.5rem;
+                color: #FFB347;
+                font-family: 'Cinzel', serif;
+                font-size: 1.1rem;
+                font-weight: 600;
+                letter-spacing: 0.15em;
+                text-transform: uppercase;
+                animation: pulseText 1.5s ease-in-out infinite;
+            }}
+            @keyframes rotateSpinner {{ 100% {{ transform: rotate(360deg); }} }}
+            @keyframes dashPulse {{
+                0% {{ stroke-dasharray: 1, 200; stroke-dashoffset: 0; }}
+                50% {{ stroke-dasharray: 89, 200; stroke-dashoffset: -35px; }}
+                100% {{ stroke-dasharray: 89, 200; stroke-dashoffset: -124px; }}
+            }}
+            @keyframes pulseText {{
+                0%, 100% {{ opacity: 0.6; filter: drop-shadow(0 0 2px rgba(255,153,51,0.1)); }}
+                50% {{ opacity: 1; filter: drop-shadow(0 0 12px rgba(255,153,51,0.6)); }}
+            }}
+            /* Hide Streamlit Native Wait Elements to prevent clash */
+            [data-testid="stStatusWidget"] {{ display: none !important; }}
+        `;
+        p.head.appendChild(style);
+
+        const loader = p.createElement('div');
+        loader.id = 'akshar-global-loader';
+        loader.innerHTML = `
+            <svg class="akshar-loader-spinner" viewBox="25 25 50 50">
+                <defs>
+                    <linearGradient id="loaderGoldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#FFB347"/>
+                        <stop offset="50%" stop-color="#FF9933"/>
+                        <stop offset="100%" stop-color="#CC7A29"/>
+                    </linearGradient>
+                </defs>
+                <circle cx="50" cy="50" r="20"></circle>
+            </svg>
+            <div class="akshar-loader-text">Loading...</div>
+        `;
+        p.body.appendChild(loader);
+
+        const msgs = ["AKSHAR.AI"];
+
+        function forceLoaderTrigger(autoClearMs = 8000) {{
+            const textEl = p.querySelector('.akshar-loader-text');
+            if (textEl) textEl.textContent = msgs[0];
+            const l = p.getElementById('akshar-global-loader');
+            if (l) {{
+                l.classList.add('is-loading');
+                if (autoClearMs) {{
+                    setTimeout(() => l.classList.remove('is-loading'), autoClearMs);
+                }}
+            }}
+        }}
+
+        // Handle Clicks (Tabs, Buttons, Options, Cards)
+        p.addEventListener('click', (e) => {{
+            let t = e.target;
+            while(t && t !== p.body) {{
+                let role = t.getAttribute ? t.getAttribute('role') : null;
+                let cls = (t.className && typeof t.className === 'string') ? t.className : '';
+                
+                // Exclude pure audio players entirely to avoid false positive
+                if (cls.includes('ak-audio') || cls.includes('learn-audio-play')) {{
+                    break;
+                }}
+                
+                // 1. Tab switches (Pure UI Layout React Rendering Lag)
+                if (role === 'tab') {{
+                    forceLoaderTrigger(600); // UI visual masking only
+                    break;
+                }}
+                
+                // 3 & 4. All Streamlit Buttons (Learn chars, Quiz answers, Camera buttons, etc.)
+                // Also 5. Library Selectbox options (clicking an item in dropdown)
+                if (t.tagName === 'BUTTON' || role === 'button' || role === 'option' || t.tagName === 'LI') {{
+                    if (t.disabled || t.getAttribute('aria-disabled') === 'true') break;
+                    // Provide an immediate loading mask. Python backend will clear it instantly when compute ends.
+                    forceLoaderTrigger(8000); 
+                    break;
+                }}
+                
+                // 3. Learn Premium Cards / Char Cards
+                if (cls.includes('premium-cat-card') || cls.includes('char-card-ui')) {{
+                    forceLoaderTrigger(8000);
+                    break;
+                }}
+                
+                t = t.parentNode;
+            }}
+        }}, true);
+
+        // Handle File Uploads and Select Changes
+        p.addEventListener('change', (e) => {{
+            let t = e.target;
+            if (t && t.tagName === 'INPUT' && t.type === 'file') {{
+                // 2. Slow file uploads
+                forceLoaderTrigger(8000);
+            }}
+            if (t && t.tagName === 'SELECT') {{
+                forceLoaderTrigger(8000);
+            }}
+        }}, true);
+
+        // Handle Keyboard Events (Enter for Text Input)
+        p.addEventListener('keydown', (e) => {{
+            let t = e.target;
+            // 5. Library tab text search
+            if (t && t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'search') && e.key === 'Enter') {{
+                forceLoaderTrigger(8000);
+            }}
+        }}, true);
+    }}
+
+    // When Streamlit finishes processing, this script re-executes. We instantly clear the loader.
+    const loader = p.getElementById('akshar-global-loader');
+    if (loader) {{
+        loader.classList.remove('is-loading');
+    }}
+    // Timestamp to force iframe execution on every Streamlit Python run: {time.time()}
+}})();
+</script>
+"""
+st.html(loading_js)
