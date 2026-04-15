@@ -4,11 +4,32 @@ import tensorflow as tf
 import json
 from PIL import Image
 
+# def load_tflite_model(model_path, labels_path, idx_to_class_path):
+#     """Load TFLite model and label files"""
+#     with open(model_path, "rb") as f:
+#         model_content = f.read()
+
+#     interpreter = tf.lite.Interpreter(model_content=model_content)
+#     interpreter.allocate_tensors()
+    
+#     with open(labels_path, "r", encoding="utf-8") as f:
+#         modi_labels = json.load(f)
+#     with open(idx_to_class_path, "r") as f:
+#         idx_to_class = json.load(f)
+    
+#     return interpreter, modi_labels, idx_to_class
+
 def load_tflite_model(model_path, labels_path, idx_to_class_path):
-    """Load TFLite model and label files"""
-    interpreter = tf.lite.Interpreter(model_path=model_path)
+    import tensorflow as tf
+
+    # 🔥 FIX: load model as bytes (important for Streamlit)
+    with open(model_path, "rb") as f:
+        model_content = f.read()
+
+    interpreter = tf.lite.Interpreter(model_content=model_content)
     interpreter.allocate_tensors()
     
+    import json
     with open(labels_path, "r", encoding="utf-8") as f:
         modi_labels = json.load(f)
     with open(idx_to_class_path, "r") as f:
