@@ -1,6 +1,17 @@
 import tensorflow as tf
 
-model = tf.keras.models.load_model("model/aksharai_final.keras")
+# 🔥 Load WITHOUT compilation
+model = tf.keras.models.load_model(
+    "model/aksharai_final.keras",
+    compile=False
+)
 
-# 🔥 RE-SAVE CLEAN MODEL
-model.save("model/aksharai_fixed.keras", save_format="keras")
+# 🔥 Rebuild model cleanly (IMPORTANT)
+inputs = tf.keras.Input(shape=model.input_shape[1:])
+outputs = model(inputs)
+clean_model = tf.keras.Model(inputs, outputs)
+
+# 🔥 Save in compatible format
+clean_model.save("model/aksharai_fixed.h5")
+
+print("✅ Grad-CAM model fixed and saved!")

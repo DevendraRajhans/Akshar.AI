@@ -78,6 +78,8 @@ def get_rejection_reason(diagnostics):
     else:
         return "Pattern too ambiguous. The image may contain noise or multiple characters."
 
+
+
 def predict(image, interpreter, modi_labels, idx_to_class, top_k=3):
     """
     Predict Modi character from image.
