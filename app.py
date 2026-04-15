@@ -22,10 +22,21 @@ from utils.predict import load_tflite_model, predict
 from utils.gradcam import generate_gradcam, get_last_conv_layer
 
 # Constants
-MODEL_PATH = "model/aksharai_model_tf.tflite"
-KERAS_MODEL_PATH = "model/aksharai_final.keras"
-LABELS_PATH = "data/modi_labels.json"
-IDX_TO_CLASS_PATH = "data/idx_to_class.json"
+# MODEL_PATH = "model/aksharai_model_tf.tflite"
+# LABELS_PATH = "data/modi_labels.json"
+# IDX_TO_CLASS_PATH = "data/idx_to_class.json"
+# KERAS_MODEL_PATH = "model/aksharai_final.keras"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_PATH = os.path.join(BASE_DIR, "model", "aksharai_model_tf.tflite")
+LABELS_PATH = os.path.join(BASE_DIR, "data", "modi_labels.json")
+IDX_TO_CLASS_PATH = os.path.join(BASE_DIR, "data", "idx_to_class.json")
+KERAS_MODEL_PATH = os.path.join(BASE_DIR, "model", "aksharai_final.keras")
+
+st.write("MODEL PATH:", MODEL_PATH)
+st.write("MODEL EXISTS:", os.path.exists(MODEL_PATH))
+
 
 st.set_page_config(page_title="AksharAI", layout="wide", page_icon="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24'>A</text></svg>")
 
