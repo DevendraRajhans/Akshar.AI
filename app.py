@@ -7,6 +7,7 @@ import hashlib
 import warnings
 import streamlit.components.v1 as components
 import warnings
+import tensorflow as tf
 
 
 # Suppress visual terminal warnings
@@ -2082,13 +2083,15 @@ def initialize_system():
 
 @st.cache_resource
 def load_keras_model():
-    if not os.path.exists(KERAS_MODEL_PATH):
-        return None
     import tensorflow as tf
     try:
-        return tf.keras.models.load_model(KERAS_MODEL_PATH)
+        return tf.keras.models.load_model(
+            KERAS_MODEL_PATH,
+            compile=False   # 🔥 THIS FIXES YOUR ERROR
+        )
     except Exception as e:
-        return e
+        print("GradCAM model load error:", e)
+        return None
 
 @st.cache_resource
 def get_cached_last_conv_layer(_keras_model):
@@ -2096,12 +2099,13 @@ def get_cached_last_conv_layer(_keras_model):
         return None
     return get_last_conv_layer(_keras_model)
 
-keras_model_result = load_keras_model()
-if isinstance(keras_model_result, Exception):
-    st.warning(f"Grad-CAM disabled: Could not load the `.keras` model ({keras_model_result}).")
-    keras_model = None
-else:
-    keras_model = keras_model_result
+# keras_model_result = load_keras_model()
+keras_model = load_keras_model()
+
+if keras_model is None:
+    st.warning("Grad-CAM model could not be loaded.")
+
+last_conv_layer = get_cached_last_conv_layer(keras_model)
 
 interpreter, modi_labels, idx_to_class = initialize_system()
 
