@@ -8,6 +8,8 @@ import warnings
 import streamlit.components.v1 as components
 import warnings
 import tensorflow as tf
+import streamlit.components.v1 as components
+
 
 
 # Suppress visual terminal warnings
@@ -25,14 +27,14 @@ from utils.gradcam import generate_gradcam, get_last_conv_layer
 # MODEL_PATH = "model/aksharai_model_tf.tflite"
 # LABELS_PATH = "data/modi_labels.json"
 # IDX_TO_CLASS_PATH = "data/idx_to_class.json"
-# KERAS_MODEL_PATH = "model/aksharai_final.keras"
+# KERAS_MODEL_PATH = "model/aksharai_fixed.keras"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 MODEL_PATH = os.path.join(BASE_DIR, "model", "aksharai_model_tf.tflite")
 LABELS_PATH = os.path.join(BASE_DIR, "data", "modi_labels.json")
 IDX_TO_CLASS_PATH = os.path.join(BASE_DIR, "data", "idx_to_class.json")
-KERAS_MODEL_PATH = os.path.join(BASE_DIR, "model", "aksharai_final.keras")
+KERAS_MODEL_PATH = os.path.join(BASE_DIR, "model", "aksharai_fixed.keras")
 
 st.write("MODEL PATH:", MODEL_PATH)
 st.write("MODEL EXISTS:", os.path.exists(MODEL_PATH))
@@ -266,7 +268,10 @@ def render_themed_audio(audio_path, player_key, title="Pronunciation Audio", aut
     }})();
     </script>
     """
-    st.iframe(audio_html, height=132)
+    import streamlit.components.v1 as components
+
+    components.iframe(audio_html, height=132)
+    # st.iframe(audio_html, height=132)
 
 def crop_center_square(image):
     """Return a centered 1:1 crop for camera captures."""
@@ -3258,7 +3263,7 @@ with tab3:
                     }})();
                     </script>
                     """
-                    st.iframe(audio_html, height=132)
+                    components.iframe(audio_html, height=132)
                 else:
                     st.markdown(f"""
                     <div class="video-not-found" style="max-width: 520px; min-height: 72px; margin: 1rem auto 0 auto;">
@@ -3317,7 +3322,7 @@ with tab3:
                         }})();
                         </script>
                         """
-                        st.iframe(video_html, height=practice_media_size + 8)
+                        components.iframe(video_html, height=practice_media_size + 8)
                         st.markdown(f"""
                         <div class="learn-speed-card">
                             <div class="practice-panel-label">
@@ -3409,7 +3414,7 @@ with tab3:
                     }})();
                     </script>
                     """
-                    st.iframe(canvas_html, height=practice_media_size + 8)
+                    components.iframe(canvas_html, height=practice_media_size + 8)
 
                     st.markdown(f"""
                     <div class="learn-speed-card" style="margin-top: 0; padding-top: 0.8rem; padding-bottom: 0.8rem;">
@@ -3445,7 +3450,7 @@ with tab3:
                     })();
                     </script>
                     """.replace('__SCORE_KEY__', ls_score_key))
-                    st.iframe(score_display_html, height=85)
+                    components.iframe(score_display_html, height=85)
 
                     eval_col, clear_col = st.columns(2)
                     with eval_col:
@@ -3550,7 +3555,8 @@ with tab3:
                             eval_script = eval_script.replace('__CANVAS_KEY__', ls_canvas_key)
                             eval_script = eval_script.replace('__SCORE_KEY__', ls_score_key)
                             eval_script = eval_script.replace('__REF_B64__', ref_b64)
-                            st.iframe(eval_script, height=1)
+                            components.iframe(eval_script, height=1)
+
 
 
     total_chars = sum(len([k for k in cat["keys"] if k in modi_labels]) for cat in learn_categories)
@@ -3852,7 +3858,7 @@ with tab4:
                         
                         # Short simple Web Audio beep + Confetti
                         if "feedback_played" not in st.session_state.quiz_session_questions[q_idx]:
-                            st.iframe("""
+                            components.iframe("""
                             <script>
                                 try {
                                     const parentWindow = window.parent || window;
@@ -3940,6 +3946,7 @@ with tab4:
                                 } catch (e) { console.log('Audio/Confetti error:', e); }
                             </script>
                             """, height=1, width=1)
+
                             st.session_state.quiz_session_questions[q_idx]["feedback_played"] = True
                             
                     else:
@@ -3950,7 +3957,7 @@ with tab4:
                         """, unsafe_allow_html=True)
                         if "feedback_played" not in st.session_state.quiz_session_questions[q_idx]:
                             # Low pitch thud
-                            st.iframe("""
+                            components.iframe("""
                             <script>
                                 try {
                                     const parentWindow = window.parent || window;
@@ -3971,6 +3978,7 @@ with tab4:
                                 } catch(e) {}
                             </script>
                             """, height=1, width=1)
+
                             st.session_state.quiz_session_questions[q_idx]["feedback_played"] = True
 
                     st.markdown(f"""
